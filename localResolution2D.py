@@ -22,7 +22,7 @@ def makeDirections(x, y, angleStep):
 if __name__ == '__main__':
 
 	# Load files from MATLAB (Temporary)
-	mat  = scipy.io.loadmat('testLinux.mat')
+	mat  = scipy.io.loadmat('testLinux1019.mat')
 	data = mat["y"]
 	mask = mat["BW"]
 
@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
 	# User defined parameters
 	width0    = 2
-	widthMax  = 8
+	widthMax  = 16
 	alpha     = 1-1e-3
 	angleStep = np.pi/4
 
@@ -47,20 +47,33 @@ if __name__ == '__main__':
 		# Find first point where CDF > alpha
 		fAlphaPreComp[0,dof] = stepSize*bisect.bisect(fCDF,alpha)
 
-	# dataList  = []
-	# fStatList = []
-
 	# Calculate F statistic for all widths
 	F      = np.zeros([n,n,widthMax-width0+1]);
 	Falpha = np.zeros_like(F)
 
+	# Reshape data to vectorize computations
+	dataList  = []
+	fStatList = []
+	for width in range(width0,widthMax+1):
+		windowSize = (2*width+1)
+		dof        = windowSize**2
+
+		tmpIdx  = 0
+		tmpData = np.zeros([mask.sum(), dof])
+		for i in range(n):
+			for j in range(n):
+				if mask[i,j] == 1:
+					tmpData[tmpIdx,:] = data[i-width:i+width+1, j-width:j+width+1].flatten()
+					tmpIdx += 1
+		dataList.append(tmpData)
+
+	# Main computation loop
 	for width in range(width0,widthMax+1):
 
 		# Create directions (x,y) in 2D
 		windowSize = (2*width+1)
 		[x,y]      = np.mgrid[-1:1:complex(0,windowSize),-1:1:complex(0,windowSize)]
 		[x,y]      = x.flatten(), y.flatten()
-		# directions = np.concatenate( (x[...,np.newaxis], y[...,np.newaxis]), axis=1 )
 		directions = makeDirections(x,y,angleStep)
 
 		# Compute kernel and degrees of freedom
@@ -82,35 +95,54 @@ if __name__ == '__main__':
 		# Compute SVD
 		[U, s, V] = linalg.svd(np.dot(np.diag(kernel),A))
 		Sinv      = linalg.diagsvd(1/s,numVals,numComb)
+		PreMultiply = np.dot(V.transpose(), np.dot(Sinv.transpose(), U.transpose()))
 
 		# Calcuate corresponding Falpha value
 		Falpha[...,width-width0] = fAlphaPreComp[0,dof]*np.ones([n,n])
 
+		# Extract data in from single width "level"
+		dataLevel = dataList[width-width0]
+		FLevel    = np.zeros([dataLevel.shape[0],1])
+
+		for i in range(dataLevel.shape[0]):
+
+			# Extract data for single point
+			dataWindow = dataLevel[i,:]
+
+			# Local weighted constant fit
+			constCoef = np.dot(kernel,dataWindow) / kernel.sum()
+			constFit  = constCoef*np.ones_like(dataWindow)
+
+			## Local weighted sine/cosine fit
+			scalingFactor = 1.0/np.max(abs(dataWindow))
+			dataScaled    = dataWindow * scalingFactor					
+			sincosCoef    = np.dot(PreMultiply,kernel*dataScaled)
+			sincosCoef    = sincosCoef / scalingFactor
+			sincosFit     = np.dot(A,sincosCoef)
+
+			# Calculate weighted residual sum of squares
+			RSSconst  = (kernel*(dataWindow -  constFit)**2).sum()
+			RSSsincos = (kernel*(dataWindow - sincosFit)**2).sum()
+
+			# Calculate F statistic
+			FLevel[i] = ( (RSSconst-RSSsincos)/(sincosCoef.size-constCoef.size)
+							 / (RSSsincos / (dof-sincosCoef.size)) )
+
+		fStatList.append(FLevel)
+
+	# Undo the reshaping
+	for width in range(width0,widthMax+1):
+
+		fLevel = fStatList[width-width0]
+
+		tmpIdx = 0;
+		tmpF   = np.zeros([n,n])
 		for i in range(n):
 			for j in range(n):
 				if mask[i,j] == 1:
-					# Extract data in local window
-					dataWindow = data[i-width:i+width+1, j-width:j+width+1].flatten()
-
-					# Local weighted constant fit
-					constCoef = np.dot(kernel,dataWindow) / kernel.sum()
-					constFit  = constCoef*np.ones_like(dataWindow)
-
-					## Local weighted sine/cosine fit
-					scalingFactor = 1.0/np.max(abs(dataWindow))
-					dataScaled    = dataWindow * scalingFactor					
-					sincosCoef    = np.dot(V.transpose(), np.dot(Sinv.transpose(), 
-									np.dot(U.transpose(),kernel*dataScaled)))
-					sincosCoef    = sincosCoef / scalingFactor
-					sincosFit     = np.dot(A,sincosCoef)
-
-					# Calculate weighted residual sum of squares
-					RSSconst  = (kernel*(dataWindow -  constFit)**2).sum()
-					RSSsincos = (kernel*(dataWindow - sincosFit)**2).sum()
-
-					# Calculate F statistic
-					F[i,j,width-width0] = ( (RSSconst-RSSsincos)/(sincosCoef.size-constCoef.size)
-									 / (RSSsincos / (dof-sincosCoef.size)) )
+					tmpF[i,j] = fLevel[tmpIdx]
+					tmpIdx += 1
+		F[..., width-width0] = tmpF
 
 	# Calculate Resolution
 	R   = F/Falpha
@@ -126,13 +158,6 @@ if __name__ == '__main__':
 	ax2 = f2.add_subplot(111)
 	ax2.imshow(res, cmap=plt.cm.jet, interpolation="nearest")
 	plt.show()
-
-
-
-
-
-
-
 
 
 
