@@ -9,6 +9,15 @@ from scipy.stats import f
 def kernelWeights(u):
 	return np.exp(-3*(u**2));
 
+def makeDirections(x, y, angleStep):
+	numberOfElements = int(math.floor(np.pi/angleStep))
+	directions       = np.zeros([x.size,numberOfElements])
+
+	# Rotate x,y and store into directions
+	for i in range(numberOfElements):
+		directions[:,i] = x*math.cos(i*angleStep) + y*math.sin(i*angleStep)
+	return directions
+
 # def main():
 if __name__ == '__main__':
 
@@ -20,18 +29,20 @@ if __name__ == '__main__':
 	n = data.shape[0]
 
 	# User defined parameters
-	width0   = 2
-	widthMax = 6
-	alpha    = 1-1e-3;
+	width0    = 2
+	widthMax  = 8
+	alpha     = 1-1e-3
+	angleStep = np.pi/4
 
 	# Precompute F statistic at chosen alpha level
 	stepSize = 1e-2;
 	maxDegreeOfFreedom = (2*widthMax+1)**2
 	fAlphaPreComp = np.zeros([1, maxDegreeOfFreedom+1]);
+	numComb = 1 + 2*(np.pi/angleStep)
 
 	for dof in range(10,maxDegreeOfFreedom+1):
 		# Create F CDF with a given degree of freedom
-		fCDF = f.cdf(np.linspace(0,100,100/stepSize), 8, dof-9)
+		fCDF = f.cdf(np.linspace(0,100,100/stepSize), numComb-1, dof-numComb)
 
 		# Find first point where CDF > alpha
 		fAlphaPreComp[0,dof] = stepSize*bisect.bisect(fCDF,alpha)
@@ -49,7 +60,8 @@ if __name__ == '__main__':
 		windowSize = (2*width+1)
 		[x,y]      = np.mgrid[-1:1:complex(0,windowSize),-1:1:complex(0,windowSize)]
 		[x,y]      = x.flatten(), y.flatten()
-		directions = np.concatenate( (x[...,np.newaxis], y[...,np.newaxis]), axis=1 )
+		# directions = np.concatenate( (x[...,np.newaxis], y[...,np.newaxis]), axis=1 )
+		directions = makeDirections(x,y,angleStep)
 
 		# Compute kernel and degrees of freedom
 		kernel     = kernelWeights(np.sqrt(x**2 + y**2)).flatten()
@@ -105,8 +117,7 @@ if __name__ == '__main__':
 	val = np.amax(R,axis=2)
 	res = np.argmax(R,axis=2)
 	res[val<=1] = widthMax;
-
-
+	
 	# Plot
 	f1 = plt.figure()
 	f2 = plt.figure()
