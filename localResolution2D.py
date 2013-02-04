@@ -7,7 +7,7 @@ from scipy import linalg
 from scipy.stats import f
 
 def kernelWeights(u):
-	return np.exp(-3*(u**2));
+	return np.exp(-2*u);
 
 def makeDirections(x, y, angleStep):
 	numberOfElements = int(math.floor(np.pi/angleStep))
@@ -22,7 +22,10 @@ def makeDirections(x, y, angleStep):
 if __name__ == '__main__':
 
 	# Load files from MATLAB (Temporary)
-	mat  = scipy.io.loadmat('testLinux1019.mat')
+	# mat   = scipy.io.loadmat('hongwei_withBW.mat')
+	# mat  = scipy.io.loadmat('testLinux.mat')
+	# mat  = scipy.io.loadmat('testLinux1019.mat')
+	mat  = scipy.io.loadmat('scheresRIBOSOME.mat')
 	data = mat["y"]
 	mask = mat["BW"]
 
@@ -30,7 +33,7 @@ if __name__ == '__main__':
 
 	# User defined parameters
 	width0    = 2
-	widthMax  = 16
+	widthMax  = 10
 	alpha     = 1-1e-3
 	angleStep = np.pi/4
 
@@ -77,7 +80,9 @@ if __name__ == '__main__':
 		directions = makeDirections(x,y,angleStep)
 
 		# Compute kernel and degrees of freedom
-		kernel     = kernelWeights(np.sqrt(x**2 + y**2)).flatten()
+		kernel     = kernelWeights(x**2 + y**2).flatten()
+		kernelSum  = kernel.sum()
+		kernelSq   = np.sqrt(kernel)
 		dof        = windowSize**2
 
 		## Pre-computed SVD for this width
@@ -93,9 +98,11 @@ if __name__ == '__main__':
 			A[:,2*i+2] = np.cos(np.pi*directions[:,i])
 
 		# Compute SVD
-		[U, s, V] = linalg.svd(np.dot(np.diag(kernel),A))
+		[U, s, V] = linalg.svd(np.dot(np.diag(kernelSq),A))
 		Sinv      = linalg.diagsvd(1/s,numVals,numComb)
-		PreMultiply = np.dot(V.transpose(), np.dot(Sinv.transpose(), U.transpose()))
+		H = np.dot(
+			np.dot(V.transpose(), np.dot(Sinv.transpose(), U.transpose())),
+			np.diag(kernelSq))
 
 		# Calcuate corresponding Falpha value
 		Falpha[...,width-width0] = fAlphaPreComp[0,dof]*np.ones([n,n])
@@ -110,13 +117,13 @@ if __name__ == '__main__':
 			dataWindow = dataLevel[i,:]
 
 			# Local weighted constant fit
-			constCoef = np.dot(kernel,dataWindow) / kernel.sum()
+			constCoef = np.dot(kernel,dataWindow) / kernelSum
 			constFit  = constCoef*np.ones_like(dataWindow)
 
 			## Local weighted sine/cosine fit
 			scalingFactor = 1.0/np.max(abs(dataWindow))
 			dataScaled    = dataWindow * scalingFactor					
-			sincosCoef    = np.dot(PreMultiply,kernel*dataScaled)
+			sincosCoef    = np.dot(H,dataScaled)
 			sincosCoef    = sincosCoef / scalingFactor
 			sincosFit     = np.dot(A,sincosCoef)
 
@@ -158,6 +165,8 @@ if __name__ == '__main__':
 	ax2 = f2.add_subplot(111)
 	ax2.imshow(res, cmap=plt.cm.jet, interpolation="nearest")
 	plt.show()
+
+#scipy.io.savemat('output.mat', {'pyF':F,'pyFAlphaPreComp':fAlphaPreComp,'pyR':R,'pyRes':res})
 
 
 
