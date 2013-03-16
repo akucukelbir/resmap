@@ -27,9 +27,9 @@ if __name__ == '__main__':
 
 	# Load files from MATLAB (Temporary)
 	# mat   = scipy.io.loadmat('hongwei_withBW.mat')
-	# mat  = scipy.io.loadmat('emdb1019_down.mat')
+	mat  = scipy.io.loadmat('emdb1019_down.mat')
 	# mat  = scipy.io.loadmat('testLinux1019.mat')
-	mat  = scipy.io.loadmat('scheresRIBOSOME_mildLPF.mat')
+	# mat  = scipy.io.loadmat('scheresRIBOSOME_mildLPF.mat')
 	# mat  = scipy.io.loadmat('ctf_synth.mat')
 
 	data = mat["y"]
