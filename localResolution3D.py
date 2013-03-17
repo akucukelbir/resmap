@@ -1,76 +1,13 @@
 import math
-# import bisect
 import numpy as np
-import matplotlib.pyplot as plt
 import scipy.io
-from scipy import linalg
-# from scipy.stats import f
+import matplotlib.pyplot as plt
 from time import time
-from itertools import product
-from numpy.lib.stride_tricks import as_strided as ast
+from scipy.optimize import minimize_scalar
 
-def rolling_window_lastaxis(a, window):
-    """Directly taken from Erik Rigtorp's post to numpy-discussion.
-    <http://www.mail-archive.com/numpy-discussion@scipy.org/msg29450.html>"""
-    if window < 1:
-       raise ValueError, "`window` must be at least 1."
-    if window > a.shape[-1]:
-       raise ValueError, "`window` is too long."
-    shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
-    strides = a.strides + (a.strides[-1],)
-    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
-
-def rolling_window(a, window):
-    """Takes a numpy array *a* and a sequence of (or single) *window* lengths
-    and returns a view of *a* that represents a moving window."""
-    if not hasattr(window, '__iter__'):
-        return rolling_window_lastaxis(a, window)
-    for i, win in enumerate(window):
-        if win > 1:
-            a = a.swapaxes(i, -1)
-            a = rolling_window_lastaxis(a, win)
-            a = a.swapaxes(-2, i)
-    return a
-
-def make3DsteerableDirections(x, y, z):
-	dirs = np.zeros(x.shape + (16,))
-
-	## 6 rotations for G2
-	
-	# Unit normals to the faces of the dodecahedron
-	v = np.array([1, 0, (np.sqrt(5.0)+1)/2.0]);
-	v = v/np.linalg.norm(v);
-	dirs[:,:,:,0] =  x*v[0] + y*v[1] + z*v[2];
-	dirs[:,:,:,1] =  x*v[1] + y*v[2] + z*v[0];
-	dirs[:,:,:,2] =  x*v[2] + y*v[0] + z*v[1];
-	
-	# Flip sign of golden ratio (arbitrary choice, just stay consistent)
-	v[2] = -v[2];
-	dirs[:,:,:,3] =  x*v[0] + y*v[1] + z*v[2];
-	dirs[:,:,:,4] =  x*v[1] + y*v[2] + z*v[0];
-	dirs[:,:,:,5] =  x*v[2] + y*v[0] + z*v[1];
-
-	## 10 rotations for H2
-	
-	# Unit normals to the faces of the icosahedron
-	v = np.array([1, (np.sqrt(5.0)+1)/2.0, 2.0/(np.sqrt(5.0)+1)]);
-	v = v/np.linalg.norm(v);
-	dirs[:,:,:,6] =  x*v[0] + y*v[1] + z*v[2];
-	dirs[:,:,:,7] =  x*v[1] + y*v[2] + z*v[0];
-	dirs[:,:,:,8] =  x*v[2] + y*v[0] + z*v[1];
-	
-	# Flip sign of golden ratio (arbitrary choice, just stay consistent)
-	v[1] = -v[1];
-	dirs[:,:,:,9]  =  x*v[0] + y*v[1] + z*v[2];
-	dirs[:,:,:,10] =  x*v[1] + y*v[2] + z*v[0];
-	dirs[:,:,:,11] =  x*v[2] + y*v[0] + z*v[1];
-	
-	# Unit normals to the vertices of the cube
-	dirs[:,:,:,12] = 1/np.sqrt(3.0) * ( x    + y + z );
-	dirs[:,:,:,13] = 1/np.sqrt(3.0) * ( -1*x + y + z );
-	dirs[:,:,:,14] = 1/np.sqrt(3.0) * ( x    - y + z );
-	dirs[:,:,:,15] = 1/np.sqrt(3.0) * ( -1*x - y + z );
-	return dirs
+# Modules found in python files in root folder
+from localreshelpers import *
+from blocks import *
 
 # def main():
 if __name__ == '__main__':
@@ -87,12 +24,13 @@ if __name__ == '__main__':
 	N 	 = int(n)
 
 	# User defined parameters
-	k      = 1.77	# voxel size (in Angstroms)
+	k      = 1.8	# voxel size (in Angstroms)
 	M      = 4.5	# query resolution (in Angstroms)
-	pValue = 0.05	# generally between (0, 0.05]
+	pValue = 0.001	# generally between (0, 0.05]
 
-	if M < 2.5*k:
-		print "Please choose a query resolution M > 2.5*k = %.2f" % 2.5*k
+	minRes = 2.5*k
+	if M < minRes:
+		print "Please choose a query resolution M > 2.5*k = %.2f" % minRes
 
 	# Create spherical mask
 	[x,y,z] = np.mgrid[ -n/2:n/2:complex(0,n),
@@ -103,16 +41,15 @@ if __name__ == '__main__':
 	del R
 
 	# Compute window size and form steerable bases
-	r = np.ceil(0.5*M/k)  		# number of pixels around center
-	s = (2.0*r*k)/M      		# scaling factor to account for overshoot due to k
-	l = np.pi*np.sqrt(2.0/5)	# lambda
+	r       = np.ceil(0.5*M/k)  		# number of pixels around center
+	s       = (2.0*r*k)/M      		# scaling factor to account for overshoot due to k
+	l       = np.pi*np.sqrt(2.0/5)	# lambda
+	winSize = 2*r+1
 
 	# Define range of x, y, z for steerable bases
-	# lsp     = np.linspace(-s*l, s*l, 2*r+1)
-	# [x,y,z] = np.meshgrid(lsp, lsp, lsp)
-	[x,y,z] = np.mgrid[	-s*l:s*l:complex(0,2*r+1),
-						-s*l:s*l:complex(0,2*r+1),
-						-s*l:s*l:complex(0,2*r+1) ]
+	[x,y,z] = np.mgrid[	-s*l:s*l:complex(0,winSize),
+						-s*l:s*l:complex(0,winSize),
+						-s*l:s*l:complex(0,winSize) ]
 	dirs    = make3DsteerableDirections(x, y, z)
 
 	# Define Gaussian kernel
@@ -141,71 +78,84 @@ if __name__ == '__main__':
 	Ac = np.zeros([numberOfPoints, 1])
 	Ac[:,0] = np.ones_like(kernel)
 
-	# Invert weighted A matrix via SVD
-	# [U, s, V] = linalg.svd(np.dot(np.diag(kernelSqrt),A))
-	# Sinv      = linalg.diagsvd(1/s,numberOfPoints,numberOfBases)
-	# H = np.dot(A, np.dot(
-	# 	np.dot(V.transpose(), np.dot(Sinv.transpose(), U.transpose())),
-	# 	np.diag(kernelSqrt)))	
-	tmp = np.dot(np.diag(kernelSqrt),A)
+	# Invert weighted A matrix via SVD	
 	H = np.dot(A, np.dot(np.linalg.pinv(np.dot(np.diag(kernelSqrt),A)), np.diag(kernelSqrt)))
 
 	# Invert weighted Ac matrix via SVD
-	# [U, s, V] = linalg.svd(np.dot(np.diag(kernelSqrt),Ac))
-	# Sinv      = linalg.diagsvd(1/s,numberOfPoints,numberOfBases)
-	# Hc = np.dot(Ac, np.dot(
-	# 	np.dot(V.transpose(), np.dot(Sinv.transpose(), U.transpose())),
-	# 	np.diag(kernelSqrt)))
 	Ack = np.dot(np.diag(kernelSqrt),Ac)	
-	Hc = np.dot(Ac, np.dot(Ack.T/(np.linalg.norm(Ack)**2), np.diag(kernelSqrt)))
+	Hc  = np.dot(Ac, np.dot(Ack.T/(np.linalg.norm(Ack)**2), np.diag(kernelSqrt)))
 
 	# Create LAMBDA matrices that correspond to WRSS = Y^T*LAMBDA*Y
 	LAMBDA     = W-np.dot(W,H);
 	LAMBDAc    = W-np.dot(W,Hc);
-	LAMBDAdiff = LAMBDAc-LAMBDA;
+	LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32');
 
-	# Calculate variance estimate
-	print 'Calculating variance estimate...',
+	# Calculate variance
+	print 'Estimating variance from non-overlapping blocks in background...',
 	tStart = time()
-	variance = 0.003
+
+	# Calculate mask of background voxels within Rinside sphere but outside of particle mask
+	maskBG = Rinside-mask
+
+	# Use numpy stride tricks to compute "view" into NON-overlapping
+	# blocks of 2*r+1. Does not allocate any extra memory
+	maskBGview = rolling_window(Rinside-mask, 
+					window=(winSize, winSize, winSize), 
+					asteps=(winSize, winSize, winSize))
+
+	dataBGview = rolling_window(data, 
+					window=(winSize, winSize, winSize), 
+					asteps=(winSize, winSize, winSize))
+
+	# Find blocks within maskBG that are all 1s (i.e. only contain background voxels)
+	blockMaskBG = np.squeeze(np.apply_over_axes(np.all, maskBGview, [3,4,5]))
+
+	# Get the i, j, k indices where the blocks are all 1s
+	blockMaskBGindex = np.array(np.where(blockMaskBG))
+
+	dataBGcube = np.zeros([numberOfPoints,1],		dtype='float32')
+	WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
+
+	# For each block, use 3D steerable model to estimate sigma^2
+	for idx in range(blockMaskBGindex.shape[1]):
+		i, j, k = blockMaskBGindex[:,idx]
+		dataBGcube = dataBGview[i,j,k,...].flatten()
+		WRSSBG[idx] = np.dot(dataBGcube.T, np.dot(LAMBDA, dataBGcube))
+	WRSSBG = WRSSBG/np.trace(LAMBDA);
+
+	# Estimate variance as mean of sigma^2's in each block
+	variance = np.mean(WRSSBG);
+
 	print 'done.'
 	m, s = divmod(time() - tStart, 60)
 	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	del maskBGview 
+	del dataBGview
 
 	## Compute Likelihood Ratio Statistic
-
-	# # Extract data from 3D volume
-	# print 'Vectorizing 3D data...',
-	# tStart = time()
-	# # tmpIdx  = 0
-	# # dataVec  = np.zeros([mask.sum(), numberOfPoints], dtype='float32')
-	
-	# # for idx in range(indexVec.shape[1]):
-	# 	# i, j, k = indexVec[:,idx]
-	# 	# dataVec[idx,:] = data[	i-r:i+r+1, 
-	# 	# 						j-r:j+r+1,
-	# 	# 						k-r:k+r+1 ].flatten()
-	# # for i, j, k in product(range(N), range(N), range(N)):
-	# # 	if mask[i,j,k]:
-	# # 		dataVec[tmpIdx,:] = data[	i-r:i+r+1, 
-	# # 									j-r:j+r+1,
-	# # 									k-r:k+r+1 ].flatten()
-	# # 		tmpIdx += 1
-	# print 'done.'
-	# m, s = divmod(time() - tStart, 60)
-	# print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# Calculate weighted residual sum of squares difference
 	print 'Calculating Likelihood Ratio Statistic...',
 	tStart   = time()
+
+	# Use numpy stride tricks to compute "view" into OVERLAPPING
+	# blocks of 2*r+1. Does not allocate any extra memory
+	dataView = rolling_window(data, window=(winSize, winSize, winSize))
+
+	# Calculate i, j, k indices where particle mask is 1
 	indexVec = np.array(np.where(mask))
-	WRSSdiff = np.zeros([indexVec.shape[1],1], 	dtype='float32')
-	dataCube = np.zeros([numberOfPoints,1], 	dtype='float32')
-	for idx in range(indexVec.shape[1]):
-		i, j, k = indexVec[:,idx]
-		dataCube[:,0] = data[	i-r:i+r+1, 
-								j-r:j+r+1,
-								k-r:k+r+1 ].flatten()
+
+	# Adjust i, j, k indices to take into account 'r'-wide padding 
+	# due to taking overlapping blocks using 'rolling_window' function
+	indexVecView = indexVec - int(r)	
+	
+	dataCube = np.zeros([numberOfPoints,1],	dtype='float32')
+	WRSSdiff = np.zeros(indexVec.shape[1],	dtype='float32')
+	
+	# Iterate over all points where particle mask is 1
+	for idx in range(indexVecView.shape[1]):
+		i, j, k = indexVecView[:,idx]
+		dataCube = dataView[i,j,k,...].flatten()
 		WRSSdiff[idx] = np.dot(dataCube.T, np.dot(LAMBDAdiff, dataCube))
 	LRSvec = WRSSdiff/variance
 	print 'done.'
@@ -213,7 +163,7 @@ if __name__ == '__main__':
 	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# Undo reshaping to get LRS in a 3D volume
-	print 'Reshaping Likelihood Ratio Statistic into 3D volume...',
+	print 'Reshaping results into original 3D volume...',
 	tStart = time()
 	LRS    = np.zeros([n,n,n], dtype='float32')
 	for idx in range(indexVec.shape[1]):
@@ -223,28 +173,75 @@ if __name__ == '__main__':
 	m, s = divmod(time() - tStart, 60)
 	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
+	## Numerically Compute Weighted X^2 Statistic
+
+	# Calculate Eigenvalues of LAMBDAdiff
+	(tmp1,tmp2) = np.linalg.eig(LAMBDAdiff)
+	LAMBDAeig = np.abs(tmp1)
+	del tmp1
+	del tmp2
+
+	# Remove small values and truncate for numerical stability
+	LAMBDAeig = np.extract(LAMBDAeig>np.max(LAMBDAeig)*1e-2,LAMBDAeig)
+
+	# Uncorrected Threshold
+	alpha = 1-pValue
+	print 'Calculating Uncorrected Threshold...',
+	tStart = time()
+	minResults = minimize_scalar(evaluateRuben, args=(alpha,LAMBDAeig))
+	thrUncorr  = minResults.x
+	print 'done.'
+	m, s = divmod(time() - tStart, 60)
+	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	# FDR Threshold
+	print 'Calculating Benjamini-Yekutieli 2001 FDR Threshold...',
+	tStart = time()
+	LRSvecSorted = np.sort(LRSvec)
+	kmax         = np.sum(LRSvecSorted > thrUncorr)
+	kpoint       = np.size(LRSvecSorted) - kmax
+	maskSum      = np.sum(mask,dtype='float32')
+	maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
+	for k in range(1,kmax,int(np.ceil(kmax/1e2))):
+		result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
+		# tmp = 1-(pValue*(1.0/(maskSum+1-(kmax-k))))
+		tmp = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
+		# print 'result[2]: %e, tmp: %e' %(result[2],tmp)
+		if result[2] > tmp:
+			thrFDR = LRSvecSorted[kpoint+k]
+			break
+	print 'done.'
+	m, s = divmod(time() - tStart, 60)
+	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	# # Bonferroni threshold
+	# alphaBon = 1-((pValue)/maskSum)
+	# print 'Calculating Bonferroni Threshold...',
+	# tStart = time()
+	# minResults = minimize_scalar(evaluateRuben, args=(alphaBon,LAMBDAeig),tol=1e-6)
+	# thrBonferroni  = minResults.x
+	# print 'done.'
+	# m, s = divmod(time() - tStart, 60)
+	# print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	# Calculate resolution
+	resUnco = LRS > thrUncorr
+	resFDR  = LRS > thrFDR
+	# resBonf = LRS > thrBonferroni
+
+	scipy.io.savemat('output.mat', {'resUncorrPY':resUnco, 'resFDRPY':resFDR} )
+
 	m, s = divmod(time() - tBegin, 60)
 	print "TOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-	
-	# # Calculate Resolution
-	# R   = F/Falpha
-	# val = np.amax(R,axis=2)
-	# res = np.argmax(R,axis=2)
-	# res[val<=1] = widthMax;
-	
-	# # Plot
-	# f1 = plt.figure()
-	# f2 = plt.figure()
-	# ax1 = f1.add_subplot(111)
-	# ax1.imshow(data, cmap=plt.cm.gray, interpolation="nearest")
-	# ax2 = f2.add_subplot(111)
-	# ax2.imshow(res, cmap=plt.cm.jet, interpolation="nearest")
-	# plt.show()
 
-	scipy.io.savemat('output.mat', {'LRSpy':LRS, 'LAMBDAdiffpy':LAMBDAdiff})
-	# scipy.io.savemat('output.mat', {'pyF':F,'pyFAlphaPreComp':fAlphaPreComp,'pyR':R,'pyRes':res})
-
-
+	# Plot
+	f1 = plt.figure()
+	f2 = plt.figure()
+	ax1 = f1.add_subplot(111)
+	ax1.imshow(data[:,:,int(n/2)], cmap=plt.cm.gray, interpolation="nearest")
+	ax2 = f2.add_subplot(111)
+	ax2.imshow(resFDR[:,:,int(n/2)], cmap=plt.cm.jet, interpolation="nearest")
+	plt.show()
 
 
 # if __name__ == '__main__':
