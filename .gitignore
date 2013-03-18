@@ -165,3 +165,7 @@ pip-log.txt
 .DS_Store
 
 *.mat
+
+*.mat
+
+output.mat

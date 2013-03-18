@@ -4,6 +4,7 @@ import scipy.io
 import matplotlib.pyplot as plt
 from time import time
 from scipy.optimize import minimize_scalar
+from scipy.ndimage import filters, morphology
 
 # Modules found in python files in root folder
 from localreshelpers import *
@@ -15,22 +16,29 @@ if __name__ == '__main__':
 	print '== BEGIN MAIN =='
 	tBegin = time()
 
-	# Load files from MATLAB (Temporary)
-	mat  = scipy.io.loadmat('volScheres2275.mat')
-	
-	data = mat["y"]
-	mask = np.array(mat["mask"],dtype='bool')
-	n 	 = data.shape[0]
-	N 	 = int(n)
-
 	# User defined parameters
-	k      = 1.8	# voxel size (in Angstroms)
+	k      = 1.77	# voxel size (in Angstroms)
 	M      = 4.5	# query resolution (in Angstroms)
 	pValue = 0.001	# generally between (0, 0.05]
 
 	minRes = 2.5*k
 	if M < minRes:
 		print "Please choose a query resolution M > 2.5*k = %.2f" % minRes
+		raise Exception('whoa')
+
+	# Compute window size and form steerable bases
+	r       = np.ceil(0.5*M/k)  		# number of pixels around center
+	s       = (2.0*r*k)/M      		# scaling factor to account for overshoot due to k
+	l       = np.pi*np.sqrt(2.0/5)	# lambda
+	winSize = 2*r+1
+
+	# Load files from MATLAB (Temporary)
+	mat  = scipy.io.loadmat('volScheres2275.mat')
+	
+	data = mat["y"]
+	# mask = np.array(mat["mask"],dtype='bool')
+	n 	 = data.shape[0]
+	N 	 = int(n)
 
 	# Create spherical mask
 	[x,y,z] = np.mgrid[ -n/2:n/2:complex(0,n),
@@ -38,13 +46,13 @@ if __name__ == '__main__':
 						-n/2:n/2:complex(0,n) ]
 	R       = np.sqrt(x**2 + y**2 + z**2)
 	Rinside = R < n/2					 	
-	del R
 
-	# Compute window size and form steerable bases
-	r       = np.ceil(0.5*M/k)  		# number of pixels around center
-	s       = (2.0*r*k)/M      		# scaling factor to account for overshoot due to k
-	l       = np.pi*np.sqrt(2.0/5)	# lambda
-	winSize = 2*r+1
+	# Compute mask separating the particle from background
+	dataBlurred = filters.gaussian_filter(data, float(n/1e2))
+	dataMask    = dataBlurred > np.max(dataBlurred)*1e-2
+	mask        = np.bitwise_and(dataMask, R < n/2 - winSize)
+	del dataMask
+	del R
 
 	# Define range of x, y, z for steerable bases
 	[x,y,z] = np.mgrid[	-s*l:s*l:complex(0,winSize),
@@ -116,11 +124,13 @@ if __name__ == '__main__':
 	dataBGcube = np.zeros([numberOfPoints,1],		dtype='float32')
 	WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
 
+	# maxIdx = blockMaskBGindex.shape[1]
 	# For each block, use 3D steerable model to estimate sigma^2
 	for idx in range(blockMaskBGindex.shape[1]):
 		i, j, k = blockMaskBGindex[:,idx]
 		dataBGcube = dataBGview[i,j,k,...].flatten()
-		WRSSBG[idx] = np.dot(dataBGcube.T, np.dot(LAMBDA, dataBGcube))
+		WRSSBG[idx] = np.vdot(dataBGcube, np.dot(LAMBDA, dataBGcube))
+		# update_progress(idx/float(maxIdx))
 	WRSSBG = WRSSBG/np.trace(LAMBDA);
 
 	# Estimate variance as mean of sigma^2's in each block
@@ -128,14 +138,14 @@ if __name__ == '__main__':
 
 	print 'done.'
 	m, s = divmod(time() - tStart, 60)
-	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 	del maskBGview 
 	del dataBGview
 
 	## Compute Likelihood Ratio Statistic
 
 	# Calculate weighted residual sum of squares difference
-	print 'Calculating Likelihood Ratio Statistic...',
+	print 'Calculating Likelihood Ratio Statistic...'
 	tStart   = time()
 
 	# Use numpy stride tricks to compute "view" into OVERLAPPING
@@ -152,15 +162,18 @@ if __name__ == '__main__':
 	dataCube = np.zeros([numberOfPoints,1],	dtype='float32')
 	WRSSdiff = np.zeros(indexVec.shape[1],	dtype='float32')
 	
+	maxIdx = indexVecView.shape[1]
 	# Iterate over all points where particle mask is 1
 	for idx in range(indexVecView.shape[1]):
 		i, j, k = indexVecView[:,idx]
 		dataCube = dataView[i,j,k,...].flatten()
-		WRSSdiff[idx] = np.dot(dataCube.T, np.dot(LAMBDAdiff, dataCube))
+		WRSSdiff[idx] = np.vdot(dataCube, np.dot(LAMBDAdiff, dataCube))
+		if idx % 1000 == 0:
+			update_progress(idx/float(maxIdx))
 	LRSvec = WRSSdiff/variance
 	print 'done.'
 	m, s = divmod(time() - tStart, 60)
-	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# Undo reshaping to get LRS in a 3D volume
 	print 'Reshaping results into original 3D volume...',
@@ -171,7 +184,7 @@ if __name__ == '__main__':
 		LRS[i,j,k] = LRSvec[idx]
 	print 'done.'
 	m, s = divmod(time() - tStart, 60)
-	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	## Numerically Compute Weighted X^2 Statistic
 
@@ -192,7 +205,7 @@ if __name__ == '__main__':
 	thrUncorr  = minResults.x
 	print 'done.'
 	m, s = divmod(time() - tStart, 60)
-	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# FDR Threshold
 	print 'Calculating Benjamini-Yekutieli 2001 FDR Threshold...',
@@ -212,7 +225,7 @@ if __name__ == '__main__':
 			break
 	print 'done.'
 	m, s = divmod(time() - tStart, 60)
-	print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# # Bonferroni threshold
 	# alphaBon = 1-((pValue)/maskSum)
