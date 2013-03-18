@@ -1,9 +1,15 @@
 import os
+from time import time
+
+# Modules for coomputation and visualization
 import numpy as np
 import matplotlib.pyplot as plt
-from time import time
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
+
+# GUI
+from Tkinter import Tk
+from tkFileDialog import askopenfilename
 
 # Modules found in python files in root folder
 from localreshelpers import *
@@ -14,10 +20,14 @@ from mrc import *
 if __name__ == '__main__':
 
 	print '== BEGIN localResolution3D ==',
+
+	Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+	inputFileName = askopenfilename() # show an "Open" dialog box and return the path to the selected file
+
 	tBegin = time()
 
 	# User defined parameters
-	inputFileName = 'EMD-2277.map'
+	# inputFileName = 'EMD-2277.map'
 	(fname,ext)   = os.path.splitext(inputFileName)
 
 	vxSize = 1.77	# voxel size (in Angstroms)
@@ -297,10 +307,6 @@ if __name__ == '__main__':
 	ax22.imshow(resTOTALma[:,:,int(4*n/9)], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
 	ax23.imshow(resTOTALma[:,:,int(5*n/9)], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
 	ax24.imshow(resTOTALma[:,:,int(6*n/9)], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	
-	ax3 = f2.add_subplot(1,1,1)
-	ax3.axis('off')
-	cbar = plt.colorbar(ax=ax24)
 
 	plt.show()
 
