@@ -5,6 +5,7 @@
 *.mat
 
 *.mrc
+*.map
 
 *.pydevproject
 .project

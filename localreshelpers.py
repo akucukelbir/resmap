@@ -12,6 +12,8 @@ def evaluateRuben(c, alpha, weights):
 def rubenPython(weights, c, mult=None, delta=None, mode=1, maxit=100000, eps=1e-5):
 	"""
 	Cite the UofMontreal people
+	// Algorithm AS 204 Appl. Statist. (1984) Vol. 33, No.3
+	// ruben evaluates the probability that a positive definite quadratic form in Normal variates is less than a given value
 	"""
 
 	# Initialize parameters
@@ -144,6 +146,7 @@ def rubenPython(weights, c, mult=None, delta=None, mode=1, maxit=100000, eps=1e-
 			prbty  = ao*prbty
 			if prbty<0.0 or prbty>1.0:
 				ifault = ifault + 5
+				res = 1e10
 			else: 
 				if dnsty < 0.0:
 					ifault = ifault + 6

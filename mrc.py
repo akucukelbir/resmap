@@ -58,17 +58,6 @@ class mrc_image:
 									   count=self.dim[0]*self.dim[1]*self.dim[2]).reshape(input_image_dimension)
 		self.image_data=self.image_data.astype(numpy.float32)
 		input_image.close()
-
-	# def writeWithHeader(self,image,matchHeader):
-	# 	output_image = open(self.filename,'w')
-
-	# 	header1 = matchHeader.header1
-	# 	header2 = struct.pack(self.byte_pattern2,' ')
-
-	# 	output_image.write(header1)
-	# 	output_image.write(header2)
-	# 	image.tofile(output_image)
-	# 	output_image.close()
 	
 	def write(self,image,output=numpy.ones(1)):
 		output_image=open(self.filename,'w')
