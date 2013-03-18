@@ -101,7 +101,8 @@ if __name__ == '__main__':
 	LAMBDAc    = W-np.dot(W,Hc);
 	LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32');
 
-	# Calculate variance
+	## Estimate variance
+
 	print 'Estimating variance from non-overlapping blocks in background...',
 	tStart = time()
 
@@ -124,16 +125,14 @@ if __name__ == '__main__':
 	# Get the i, j, k indices where the blocks are all 1s
 	blockMaskBGindex = np.array(np.where(blockMaskBG))
 
-	dataBGcube = np.zeros([numberOfPoints,1],		dtype='float32')
+	dataBGcube = np.zeros(numberOfPoints,			dtype='float32')
 	WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
 
-	# maxIdx = blockMaskBGindex.shape[1]
 	# For each block, use 3D steerable model to estimate sigma^2
 	for idx in range(blockMaskBGindex.shape[1]):
-		i, j, k = blockMaskBGindex[:,idx]
-		dataBGcube = dataBGview[i,j,k,...].flatten()
+		i, j, k     = blockMaskBGindex[:,idx]
+		dataBGcube  = dataBGview[i,j,k,...].flatten()
 		WRSSBG[idx] = np.vdot(dataBGcube, np.dot(LAMBDA, dataBGcube))
-		# update_progress(idx/float(maxIdx))
 	WRSSBG = WRSSBG/np.trace(LAMBDA);
 
 	# Estimate variance as mean of sigma^2's in each block
@@ -162,16 +161,17 @@ if __name__ == '__main__':
 	# due to taking overlapping blocks using 'rolling_window' function
 	indexVecView = indexVec - int(r)	
 	
-	dataCube = np.zeros([numberOfPoints,1],	dtype='float32')
+	dataCube = np.zeros(numberOfPoints,		dtype='float32')
 	WRSSdiff = np.zeros(indexVec.shape[1],	dtype='float32')
 	
 	maxIdx = indexVecView.shape[1]
+	progressBarIdx = int(maxIdx/100)
 	# Iterate over all points where particle mask is 1
 	for idx in range(indexVecView.shape[1]):
-		i, j, k = indexVecView[:,idx]
-		dataCube = dataView[i,j,k,...].flatten()
+		i, j, k       = indexVecView[:,idx]
+		dataCube      = dataView[i,j,k,...].flatten()
 		WRSSdiff[idx] = np.vdot(dataCube, np.dot(LAMBDAdiff, dataCube))
-		if idx % 10000 == 0:
+		if idx % progressBarIdx == 0:
 			update_progress(idx/float(maxIdx))
 	LRSvec = WRSSdiff/variance
 	print 'done.'

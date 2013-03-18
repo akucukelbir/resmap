@@ -4,6 +4,8 @@
 
 *.mat
 
+*.mrc
+
 *.pydevproject
 .project
 .metadata
