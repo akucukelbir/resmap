@@ -9,6 +9,7 @@ from scipy.ndimage import filters, morphology
 # Modules found in python files in root folder
 from localreshelpers import *
 from blocks import *
+from mrc import *
 
 # def main():
 if __name__ == '__main__':
@@ -19,7 +20,7 @@ if __name__ == '__main__':
 	# User defined parameters
 	k      = 1.77	# voxel size (in Angstroms)
 	M      = 4.5	# query resolution (in Angstroms)
-	pValue = 0.001	# generally between (0, 0.05]
+	pValue = 1e-3	# generally between (0, 0.05]
 
 	minRes = 2.5*k
 	if M < minRes:
@@ -27,16 +28,18 @@ if __name__ == '__main__':
 		raise Exception('whoa')
 
 	# Compute window size and form steerable bases
-	r       = np.ceil(0.5*M/k)  		# number of pixels around center
+	r       = np.ceil(0.5*M/k)  	# number of pixels around center
 	s       = (2.0*r*k)/M      		# scaling factor to account for overshoot due to k
 	l       = np.pi*np.sqrt(2.0/5)	# lambda
 	winSize = 2*r+1
 
 	# Load files from MATLAB (Temporary)
-	mat  = scipy.io.loadmat('volScheres2275.mat')
-	
-	data = mat["y"]
-	# mask = np.array(mat["mask"],dtype='bool')
+	# mat  = scipy.io.loadmat('volScheres2275.mat')
+	# data = mat["y"]
+	data = mrc_image('EMD-2275.mrc')
+	data.read()
+	data = data.image_data
+
 	n 	 = data.shape[0]
 	N 	 = int(n)
 
@@ -49,8 +52,8 @@ if __name__ == '__main__':
 
 	# Compute mask separating the particle from background
 	dataBlurred = filters.gaussian_filter(data, float(n/1e2))
-	dataMask    = dataBlurred > np.max(dataBlurred)*1e-2
-	mask        = np.bitwise_and(dataMask, R < n/2 - winSize)
+	dataMask    = dataBlurred > np.max(dataBlurred)*1e-1
+	mask        = np.bitwise_and(dataMask, R < n/2 - 2*winSize)
 	del dataMask
 	del R
 
@@ -168,7 +171,7 @@ if __name__ == '__main__':
 		i, j, k = indexVecView[:,idx]
 		dataCube = dataView[i,j,k,...].flatten()
 		WRSSdiff[idx] = np.vdot(dataCube, np.dot(LAMBDAdiff, dataCube))
-		if idx % 1000 == 0:
+		if idx % 10000 == 0:
 			update_progress(idx/float(maxIdx))
 	LRSvec = WRSSdiff/variance
 	print 'done.'
@@ -215,7 +218,7 @@ if __name__ == '__main__':
 	kpoint       = np.size(LRSvecSorted) - kmax
 	maskSum      = np.sum(mask,dtype='float32')
 	maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
-	for k in range(1,kmax,int(np.ceil(kmax/1e2))):
+	for k in range(1,kmax,int(np.ceil(kmax/5e1))):
 		result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
 		# tmp = 1-(pValue*(1.0/(maskSum+1-(kmax-k))))
 		tmp = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
@@ -242,7 +245,11 @@ if __name__ == '__main__':
 	resFDR  = LRS > thrFDR
 	# resBonf = LRS > thrBonferroni
 
-	scipy.io.savemat('output.mat', {'resUncorrPY':resUnco, 'resFDRPY':resFDR} )
+	# scipy.io.savemat('output.mat', {'resUncorrPY':resUnco, 'resFDRPY':resFDR} )
+	outputMRC = mrc_image('EMD-2275.mrc')
+	outputMRC.read()
+	outputMRC.change_filename('EMD-2275_res.mrc')
+	outputMRC.write(np.array(resFDR,dtype='float32'))
 
 	m, s = divmod(time() - tBegin, 60)
 	print "TOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
