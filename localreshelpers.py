@@ -1,6 +1,9 @@
 from scipy.stats import norm
 import numpy as np
 
+def update_progress(amtDone):
+	print("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone * 100)),
+
 def evaluateRuben(c, alpha, weights):
 	evaluated = rubenPython(weights,c)
 	answer = np.abs(alpha-evaluated[2])
