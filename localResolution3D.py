@@ -8,8 +8,8 @@ from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
 
 # GUI
-from Tkinter import Tk
-from tkFileDialog import askopenfilename
+# from Tkinter import Tk
+# from tkFileDialog import askopenfilename
 
 # Modules found in python files in root folder
 from localreshelpers import *
@@ -21,22 +21,22 @@ if __name__ == '__main__':
 
 	print '== BEGIN localResolution3D ==',
 
-	Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-	inputFileName = askopenfilename() # show an "Open" dialog box and return the path to the selected file
+	# Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
+	# inputFileName = askopenfilename() # show an "Open" dialog box and return the path to the selected file
 
 	tBegin = time()
 
 	# User defined parameters
-	# inputFileName = 'EMD-2277.map'
+	inputFileName = 'EMD-2277.map'
 	(fname,ext)   = os.path.splitext(inputFileName)
 
 	vxSize = 1.77	# voxel size (in Angstroms)
 
 	Mbegin = 4.5	# query resolution (in Angstroms)
-	Mend   = 7.5
-	Mstep  = 1.0
+	Mend   = 7.0
+	Mstep  = 0.5
 
-	pValue = 0.01	# generally between (0, 0.05]
+	pValue = 0.05	# generally between (0, 0.05]
 
 	Marray = np.arange(Mbegin, Mend+Mstep, Mstep)
 
@@ -66,9 +66,11 @@ if __name__ == '__main__':
 
 		print '\n\n= Calculating Local Resolution for %.2f Angstroms\n' % M
 		# Compute window size and form steerable bases
-		r       = np.ceil(0.5*M/vxSize)  	# number of pixels around center
-		s       = (2.0*r*vxSize)/M      	# scaling factor to account for overshoot due to vxSize
-		l       = np.pi*np.sqrt(2.0/5)		# lambda
+		# r       = np.ceil(0.5*M/vxSize)  	# number of pixels around center
+		# s       = (2.0*r*vxSize)/M      	# scaling factor to account for overshoot due to vxSize
+		# l       = np.pi*np.sqrt(2.0/5)		# lambda	
+		r       = np.ceil(0.5*M/vxSize)			# number of pixels around center
+		a       = (2*np.pi/M) * np.sqrt(2.0/5)	# scaling factor so that peak occurs at 1/M Angstroms
 		winSize = 2*r+1				 	
 
 		if M == Mbegin:
@@ -82,17 +84,32 @@ if __name__ == '__main__':
 			# Get the voxels that got rejected from the previous resolution level
 			mask = np.array(mask - res,dtype='bool')
 			if np.sum(mask)==0:
-				raise Exception('No more voxels to compute')
+				print 'No more voxels to compute'
 
+		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+		ax1.imshow(data[:,:,int(3*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		ax2.imshow(data[:,:,int(4*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		ax3.imshow(data[:,:,int(5*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		ax4.imshow(data[:,:,int(6*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+
+		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+		ax1.imshow(mask[:,:,int(3*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		ax2.imshow(mask[:,:,int(4*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		ax3.imshow(mask[:,:,int(5*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		ax4.imshow(mask[:,:,int(6*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		plt.show()
 
 		# Define range of x, y, z for steerable bases
-		[x,y,z] = np.mgrid[	-s*l:s*l:complex(0,winSize),
-							-s*l:s*l:complex(0,winSize),
-							-s*l:s*l:complex(0,winSize) ]
+		# [x,y,z] = np.mgrid[	-s*l:s*l:complex(0,winSize),
+		# 					-s*l:s*l:complex(0,winSize),
+		# 					-s*l:s*l:complex(0,winSize) ]
+		[x,y,z] = a*np.mgrid[	-r*vxSize:r*vxSize:complex(0,winSize),
+								-r*vxSize:r*vxSize:complex(0,winSize),
+								-r*vxSize:r*vxSize:complex(0,winSize) ]		
 		dirs    = make3DsteerableDirections(x, y, z)
 
 		# Define Gaussian kernel
-		kernel     = np.exp(-1*(x**2 + y**2 + z**2)).flatten()
+		kernel     = np.exp(-1/2*(x**2 + y**2 + z**2)).flatten()
 		kernelSqrt = np.sqrt(kernel)  
 		kernelSum  = kernel.sum()
 		W          = np.diag(kernel)
@@ -247,13 +264,14 @@ if __name__ == '__main__':
 		kpoint       = np.size(LRSvecSorted) - kmax
 		maskSum      = np.sum(mask,dtype='float32')
 		maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
-		for k in range(1,kmax,int(np.ceil(kmax/5e1))):
+		for k in range(1,kmax,int(np.ceil(kmax/5e2))):
 			result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
 			# tmp = 1-(pValue*(1.0/(maskSum+1-(kmax-k))))
 			tmp = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
+			thrFDR = LRSvecSorted[kpoint+k]
 			# print 'result[2]: %e, tmp: %e' %(result[2],tmp)
 			if result[2] > tmp:
-				thrFDR = LRSvecSorted[kpoint+k]
+				# print 'HIT'
 				break
 		print 'done.'
 		m, s = divmod(time() - tStart, 60)
@@ -307,8 +325,8 @@ if __name__ == '__main__':
 	ax22.imshow(resTOTALma[:,:,int(4*n/9)], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
 	ax23.imshow(resTOTALma[:,:,int(5*n/9)], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
 	ax24.imshow(resTOTALma[:,:,int(6*n/9)], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-
 	plt.show()
+
 
 	raw_input("Press any key to EXIT")
 
