@@ -32,18 +32,22 @@ if __name__ == '__main__':
 
 	vxSize = 1.77	# voxel size (in Angstroms)
 
-	Mbegin = 4.5	# query resolution (in Angstroms)
-	Mend   = 7.0
+	# Mbegin = 4.5	# query resolution (in Angstroms)
+	# Mend   = 7.5
+	# Mstep  = 0.5
+
+	Mbegin = round((2.5*vxSize)/0.5)*0.5	# round to the nearest 0.5
 	Mstep  = 0.5
+	M      = Mbegin
 
 	pValue = 0.05	# generally between (0, 0.05]
 
-	Marray = np.arange(Mbegin, Mend+Mstep, Mstep)
+	# Marray = np.arange(Mbegin, Mend+Mstep, Mstep)
 
-	minRes = 2.5*vxSize
-	if Mbegin < minRes:
-		print "Please choose a query resolution M > 2.5*vxSize = %.2f" % minRes
-		raise Exception('Take care of this')
+	# minRes = 2.5*vxSize
+	# if Mbegin < minRes:
+	# 	print "Please choose a query resolution M > 2.5*vxSize = %.2f" % minRes
+	# 	raise Exception('Take care of this')
 
 	# Load files from MRC file
 	data = mrc_image(inputFileName)
@@ -62,7 +66,9 @@ if __name__ == '__main__':
 
 	resTOTAL = np.zeros_like(data)
 
-	for M in Marray:
+	moreToProcess = True
+	# for M in Marray:
+	while moreToProcess:
 
 		print '\n\n= Calculating Local Resolution for %.2f Angstroms\n' % M
 		# Compute window size and form steerable bases
@@ -80,24 +86,19 @@ if __name__ == '__main__':
 			mask        = np.bitwise_and(dataMask, R < n/2 - 2*winSize)
 			del dataMask
 			del R
-		else:
-			# Get the voxels that got rejected from the previous resolution level
-			mask = np.array(mask - res,dtype='bool')
-			if np.sum(mask)==0:
-				print 'No more voxels to compute'
 
-		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		ax1.imshow(data[:,:,int(3*n/9)], cmap=plt.cm.gray, interpolation="nearest")
-		ax2.imshow(data[:,:,int(4*n/9)], cmap=plt.cm.gray, interpolation="nearest")
-		ax3.imshow(data[:,:,int(5*n/9)], cmap=plt.cm.gray, interpolation="nearest")
-		ax4.imshow(data[:,:,int(6*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+		# ax1.imshow(data[:,:,int(3*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		# ax2.imshow(data[:,:,int(4*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		# ax3.imshow(data[:,:,int(5*n/9)], cmap=plt.cm.gray, interpolation="nearest")
+		# ax4.imshow(data[:,:,int(6*n/9)], cmap=plt.cm.gray, interpolation="nearest")
 
-		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		ax1.imshow(mask[:,:,int(3*n/9)], cmap=plt.cm.jet, interpolation="nearest")
-		ax2.imshow(mask[:,:,int(4*n/9)], cmap=plt.cm.jet, interpolation="nearest")
-		ax3.imshow(mask[:,:,int(5*n/9)], cmap=plt.cm.jet, interpolation="nearest")
-		ax4.imshow(mask[:,:,int(6*n/9)], cmap=plt.cm.jet, interpolation="nearest")
-		plt.show()
+		# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+		# ax1.imshow(mask[:,:,int(3*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		# ax2.imshow(mask[:,:,int(4*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		# ax3.imshow(mask[:,:,int(5*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		# ax4.imshow(mask[:,:,int(6*n/9)], cmap=plt.cm.jet, interpolation="nearest")
+		# plt.show()
 
 		# Define range of x, y, z for steerable bases
 		# [x,y,z] = np.mgrid[	-s*l:s*l:complex(0,winSize),
@@ -288,15 +289,23 @@ if __name__ == '__main__':
 		# print ":: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 		# Calculate resolution
-		# resUnco = LRS > thrUncorr
 		res      = LRS > thrFDR
 		resTOTAL = resTOTAL + M*res
-		# resBonf = LRS > thrBonferroni
+
+		# Update the mask to voxels that failed this level's likelihood test
+		mask = np.array(mask - res, dtype='bool')
+		print np.sum(mask)
+		if np.sum(mask)<n**2:
+			print 'We have probably covered all the voxels of interest.'
+			moreToProcess = False
+
+		# Update query resolution
+		M += Mstep
 
 
-	# Set all voxels that were outside of the mask or that failed all resolution tests to 10*Mend
+	# Set all voxels that were outside of the mask or that failed all resolution tests to 10*M_final
 	zeroVoxels = (resTOTAL==0)
-	resTOTAL[zeroVoxels] = 10*Mend
+	resTOTAL[zeroVoxels] = M+Mstep
 
 	# Write results out as MRC volume
 	outputMRC = mrc_image(inputFileName)
@@ -308,7 +317,7 @@ if __name__ == '__main__':
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# Plots
-	resTOTALma  = np.ma.masked_where(resTOTAL == 10*Mend, resTOTAL)
+	resTOTALma  = np.ma.masked_where(resTOTAL == M+Mstep, resTOTAL)
 
 	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 	ax1.imshow(data[:,:,int(3*n/9)], cmap=plt.cm.gray, interpolation="nearest")
