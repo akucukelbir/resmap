@@ -7,119 +7,47 @@ import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
 
-# GUI
-# from Tkinter import Tk
-# from tkFileDialog import askopenfilename
-
 # Modules found in python files in root folder
 from sphericalProfile import *
 from localreshelpers import *
 from blocks import *
 from mrc import *
 
-# def main():
-if __name__ == '__main__':
+def lr3D(**kwargs):
 
 	print '== BEGIN localResolution3D ==',
-
 	preWhiten = False
-
-	# Tk().withdraw() # we don't want a full GUI, so keep the root window from appearing
-	# inputFileName = askopenfilename() # show an "Open" dialog box and return the path to the selected file
-
 	tBegin = time()
 
-	# User defined parameters
+	inputFileName = kwargs.get('inputFileName','')
+	data          = kwargs.get('data', 0)
+	vxSize        = kwargs.get('vxSize', 0)
+	pValue        = kwargs.get('pValue', 0.05)
 
-	inputFileName = 'pro_sharp.map'
-	vxSize = 2.17	# voxel size (in Angstroms)
-	Mmax   = 12
+	Mbegin = kwargs.get('Mbegin', 0.0 ) 
+	Mmax   = kwargs.get('Mmax',   0.0 )
+	Mstep  = kwargs.get('Mstep',  1.0 )  
 
-	# inputFileName = 'synth_nonwhite_var20.map'
-	# vxSize = 1.0	# voxel size (in Angstroms)
-	# Mmax   = 8
+	dataMask = kwargs.get('dataMask',0)
 
-	# inputFileName = 'synth_nonwhite_var025.map'
-	# vxSize = 1.0	# voxel size (in Angstroms)
-	# Mmax   = 6
+	if Mbegin == 0.0:
+		Mbegin = round((2.5*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
-	# inputFileName = 'EMD-2275.map'
-	# vxSize = 1.77	# voxel size (in Angstroms)
-	# Mmax   = 6
-
-	# inputFileName = 'EMD-5529_crop_down.map'
-	# vxSize = (8.0/6)*1.74	# voxel size (in Angstroms)
-	# Mmax   = 8
-
-	# inputFileName = 'EMD-2277.map'
-	# vxSize = 1.77	# voxel size (in Angstroms)
-	# Mmax   = 7
-
-	# inputFileName = 'EMD-2277_down.map'
-	# vxSize = (8.0/6.0)*1.77	# voxel size (in Angstroms)
-	# Mmax   = 7
-
-	# inputFileName = 'EMD-2238.map'
-	# vxSize = 2.45	# voxel size (in Angstroms)	
-	# Mmax   = 10
-
-	# inputFileName = 'EMD-2238_down.map'
-	# vxSize = (8.0/6.0)*2.45	# voxel size (in Angstroms)	
-	# Mmax   = 10
+	if Mmax == 0.0:
+		Mmax = round((4*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
 
-	# inputFileName = 'EMD-5562.map'
-	# vxSize = 2.71	# voxel size (in Angstroms)	
-	# Mmax   = 14
-
-	# inputFileName = 'EMD-5562_down.map'
-	# vxSize = (8.0/5.0)*2.71	# voxel size (in Angstroms)	
-	# Mmax   = 14
-
-	# inputFileName = 'EMD-2012.map'
-	# vxSize = 1.81	# voxel size (in Angstroms)	
-	# Mmax   = 10
-
-	# inputFileName = 'EMD-2012_down.map'
-	# vxSize = (8.0/5.0)*1.81	# voxel size (in Angstroms)	
-	# Mmax   = 10
-
-	# inputFileName = 'class4_half1.map'
-	# vxSize = 1.77	# voxel size (in Angstroms)	
-	# Mmax   = 6
-
-	# inputFileName = 'class4_half1_pw.map'
-	# vxSize = 1.77	# voxel size (in Angstroms)	
-	# Mmax   = 8
-
-	# inputFileName = 'threed_12a_pw1.map'
-	# vxSize = 3.09	# voxel size (in Angstroms)	
-	# Mmax = 15
-
-	# inputFileName = 'nramm_ab_pw1.map'
-	# vxSize = 3.09	# voxel size (in Angstroms)	
-	# Mmax = 15
 
 	(fname,ext)   = os.path.splitext(inputFileName)
 
-	# Start from M = 2.5*vxSize, take steps of Mstep up
-	Mbegin = round((2.5*vxSize)/0.5)*0.5	# round to the nearest 0.5
-	Mstep  = 1.0
-	M      = Mbegin
-
-	pValue = 0.05	# generally between (0, 0.05]
-
-	# minRes = 2.5*vxSize
-	# if Mbegin < minRes:
-	# 	print "Please choose a query resolution M > 2.5*vxSize = %.2f" % minRes
-	# 	raise Exception('Take care of this')
+	M = Mbegin
 
 	# Load files from MRC file
 	print '\n\n= Loading Volume'
 	tStart    = time()
-	data = mrc_image(inputFileName)
-	data.read()
-	data = data.image_data
+	# data = mrc_image(inputFileName)
+	# data.read()
+	# data = data.image_data
 	n 	 = data.shape[0]
 	N 	 = int(n)
 	m, s      = divmod(time() - tStart, 60)
@@ -137,12 +65,7 @@ if __name__ == '__main__':
 	del (x,y,z)	
 
 	# Compute mask separating the particle from background
-
-	dataTMP = mrc_image('pro_unsharp.map')
-	dataTMP.read()
-	dataTMP = dataTMP.image_data
-
-	dataBlurred  = filters.gaussian_filter(dataTMP, float(n*0.02))	# kernel size 2% of n
+	dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
 	dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
 	mask         = np.bitwise_and(dataMask, R < n/2 - 9)
 	maskORIG     = mask
@@ -458,7 +381,8 @@ if __name__ == '__main__':
 	# Plots
 	resTOTALma  = np.ma.masked_where(resTOTAL == M+Mstep, resTOTAL)
 
-	print "\nMEAN RESOLUTION = %.2f" % np.ma.mean(resTOTALma)
+	print "\nMEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
+	print "\nRESULT WRITTEN to MRC file: " + fname + "_res" + ext
 
 	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 	ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
@@ -478,8 +402,7 @@ if __name__ == '__main__':
 	cbar = f2.colorbar(cax)
 	plt.show()
 
-
-	raw_input("Press any key to EXIT")
+	# raw_input("Press any key or close windows to EXIT")
 
 
 # if __name__ == '__main__':
