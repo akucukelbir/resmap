@@ -6,7 +6,10 @@ from mrc import *
 from lr3D import lr3D
 
 def load_file(fileNameStringVar):
-	fname = askopenfilename(filetypes=( ("All files", "*.*"), ("MRC volumes", "*.mrc;*.map") ) )
+	options =  {}
+	# options['filetypes'] = [ ("All files", ".*"), ("MRC map", ".map,.mrc") ]
+	options['title'] = "LR3D - Select data file"
+	fname = askopenfilename(**options)
 	if fname:
 		try:
 			fileNameStringVar.set(fname)

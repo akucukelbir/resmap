@@ -1,9 +1,9 @@
-import os
+import os, sys
 from time import time
 
 # Modules for coomputation and visualization
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
 
@@ -112,16 +112,16 @@ def lr3D(**kwargs):
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-		plt.plot(xpoly,dataSpect**2,'b', 
-				 xpoly,np.exp(peval)**2,'r',
-				 xpoly,dataPWSpect**2,'m')
-		plt.yscale('log')
-		plt.show()
+		# plt.plot(xpoly,dataSpect**2,'b', 
+		# 		 xpoly,np.exp(peval)**2,'r',
+		# 		 xpoly,dataPWSpect**2,'m')
+		# plt.yscale('log')
+		# plt.show()
 
-		f, (ax1, ax2) = plt.subplots(1, 2)
-		ax1.imshow(data[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax2.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		plt.show()
+		# f, (ax1, ax2) = plt.subplots(1, 2)
+		# ax1.imshow(data[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax2.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# plt.show()
 
 		data = dataPW
 
@@ -275,6 +275,7 @@ def lr3D(**kwargs):
 			WRSSdiff[idx] = np.vdot(dataCube, np.dot(LAMBDAdiff, dataCube))
 			if idx % progressBarIdx == 0:
 				update_progress(idx/float(maxIdx))
+				sys.stdout.flush()
 		LRSvec = WRSSdiff/(variance+1e-10)
 		print 'done.'
 		m, s = divmod(time() - tStart, 60)
@@ -384,23 +385,28 @@ def lr3D(**kwargs):
 	print "\nMEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_res" + ext
 
-	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-	ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	# ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
  
-	f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
-	ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	cax = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	cbar = f2.colorbar(cax)
-	plt.show()
+	# f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
+	# ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# cax = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+	# ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+	# ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+	# ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+	# cbar = f2.colorbar(cax)
+	# plt.show()
+
+	try: 
+		input = raw_input
+	except NameError: 
+		pass
 
 	# raw_input("Press any key or close windows to EXIT")
 
