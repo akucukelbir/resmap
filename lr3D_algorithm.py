@@ -1,24 +1,84 @@
+'''
+lr3D_algorithm: module containing main local resolution 3D algorithm. (Alp Kucukelbir, 2013)
+             
+
+Description of functions:
+    lr3D_algorithm: Computed the local resolution map of a density map
+
+Requirements:
+    numpy
+    scipy
+    lr3D submodules
+
+'''
 import os, sys
 from time import time
 
-# Modules for coomputation and visualization
 import numpy as np
-# import matplotlib.pyplot as plt
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
 
-# Modules found in python files in root folder
-from sphericalProfile import *
-from localreshelpers import *
-from blocks import *
-from mrc import *
+from lr3D_helpers import *
+from lr3D_blocks import *
+from lr3D_fileIO import *
+
+# import matplotlib.pyplot as plt
+# from sphericalProfile import *
 
 def lr3D_algorithm(**kwargs):
+	'''
+	lr3D_algorithm implements the procedure described in the following article: (Alp Kucukelbir, 2013)
+
+	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, Quantifying the Local Resolution of 3D Density Maps, preprint.
+
+	The procedure will (coarsely speaking) do the following things:	
+		1. Load the MRC volume (unless it is passed from the GUI)
+		2. Calculate a mask that separates the particle from the background
+		(BETA: 2a. Prewhiten the volume if necessary) 
+		3. Form the required matrices for a local sinusoid-like model of a certain scale
+		4. Estimate the variance from non-overlapping blocks in the background
+		5. Calculate the likelihood ratio statistic
+		6. Compute the FDR adjusted threshold
+		7. Compare the statistic to the threshold and assign a resolution to points that pass
+		8. Repeat until max resolution is reached or most points in mask are processed
+		9. Write result out to a MRC volume
+
+	Required Parameters 
+	----------
+	inputFileName: string variable pointing to density map to analyze
+	      	 data: density map loaded as a numpy array
+	       vxSize: the voxel spacing for the density map (in voxels/Angstrom)
+	       pValue: the desired significance level (usually 0.05)
+
+	Optional Parameters 
+	----------
+	  Mbegin: starting resolution (defaults to 2.5 * vxSize)
+	 	Mmax: stopping resolution (defaults to 4 * vxSize)
+	   Mstep: step size for resolution queries (usually 0.5 or 1.0, in Angstroms)
+	dataMask: mask loaded as a numpy array (default: algorithm tries to compute a mask automatically)
+
+	Assumptions 
+	-------
+	LR3D assumes that the density map being analyzed has not been filtered in any way, and that 
+	some reasonable degree of amplitude correction (B-factor sharpening) has been applied, such that
+	the spherical spectrum of the map is relatively white towards the Nyquist end of the spectrum.
+
+	Returns 
+	-------
+	Writes out a new MRC volume in the same folder as the input MRC volume with '_LR3d' appended to
+	the file name. Values are in Angstrom and represent the local resolution assigned to each point.
+
+	Beta Features
+	-------------
+	Amplitude correction: there are snippets below that try to automatically perform a very basic amplitude 
+	correction. Uncomment and re-run at your own peril. 
+	'''
 
 	print '== BEGIN localResolution3D ==',
 	preWhiten = False
 	tBegin = time()
 
+	## Process inputs to function
 	inputFileName = kwargs.get('inputFileName','')
 	data          = kwargs.get('data', 0)
 	vxSize        = kwargs.get('vxSize', 0)
@@ -26,26 +86,26 @@ def lr3D_algorithm(**kwargs):
 
 	Mbegin = kwargs.get('Mbegin', 0.0 ) 
 	Mmax   = kwargs.get('Mmax',   0.0 )
-	Mstep  = kwargs.get('Mstep',  1.0 )  
+	Mstep  = kwargs.get('Mstep',  1.0 ) 
 
 	dataMask = kwargs.get('dataMask',0)
 
 	if Mbegin == 0.0:
 		Mbegin = round((2.5*vxSize)/0.5)*0.5 # round to the nearest 0.5
+	M      = Mbegin 
 
 	if Mmax == 0.0:
 		Mmax = round((4*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
 	(fname,ext)   = os.path.splitext(inputFileName)
 
-	M = Mbegin
-
 	# Load files from MRC file
 	print '\n\n= Loading Volume'
 	tStart    = time()
-	# data = mrc_image(inputFileName)
-	# data.read()
-	# data = data.image_data
+	if data.ndim != 3: # the volume wasn't passed in for some reason
+		data = mrc_image(inputFileName)
+		data.read()
+		data = data.image_data
 	n 	 = data.shape[0]
 	N 	 = int(n)
 	m, s      = divmod(time() - tStart, 60)
@@ -67,8 +127,6 @@ def lr3D_algorithm(**kwargs):
 	dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
 	mask         = np.bitwise_and(dataMask, R < n/2 - 9)
 	maskORIG     = mask
-	# maskBG       = np.bitwise_and(np.logical_not(dataMask), R < n/2 - 2)
-	# maskBGsmooth = filters.gaussian_filter(maskBG, float(n*0.05))	# kernel size 5% of n
 	oldSumOfMask = np.sum(mask)
 	del dataMask	
 
@@ -181,7 +239,7 @@ def lr3D_algorithm(**kwargs):
 		Ac = np.zeros([numberOfPoints, 1])
 		Ac[:,0] = np.ones_like(kernel)
 
-		# debug
+		# Form matrix of all but the constant term
 		Ad = A[:,1:17]
 		Hd = np.dot(Ad, np.dot(np.linalg.pinv(np.dot(np.diag(kernelSqrt),Ad)), np.diag(kernelSqrt)))
 		LAMBDAd = W-np.dot(W,Hd)
@@ -199,7 +257,6 @@ def lr3D_algorithm(**kwargs):
 		LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32')
 
 		## Estimate variance
-	# if M == Mbegin:
 		print 'Estimating variance from non-overlapping blocks in background...',
 		tStart = time()
 
@@ -364,25 +421,24 @@ def lr3D_algorithm(**kwargs):
 		M += Mstep
 
 
-	# Set all voxels that were outside of the mask or that failed all resolution tests to M+Mstep
+	# Set all voxels that were outside of the mask or that failed all resolution tests to 0
 	zeroVoxels = (resTOTAL==0)
-	resTOTAL[zeroVoxels] = M+Mstep
+	resTOTAL[zeroVoxels] = 0
 
 	# Write results out as MRC volume
 	outputMRC = mrc_image(inputFileName)
 	outputMRC.read()
-	outputMRC.change_filename(fname+"_res"+ext)
+	outputMRC.change_filename(fname+"_LR3D"+ext)
 	outputMRC.write(np.array(resTOTAL,dtype='float32'))
 
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	# Plots
-	resTOTALma  = np.ma.masked_where(resTOTAL == M+Mstep, resTOTAL)
-
+	resTOTALma  = np.ma.masked_where(resTOTAL == 0, resTOTAL)	
 	print "\nMEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
-	print "\nRESULT WRITTEN to MRC file: " + fname + "_res" + ext
+	print "\nRESULT WRITTEN to MRC file: " + fname + "_LR3D" + ext
 
+	## Plots
 	# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 	# ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 	# ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")

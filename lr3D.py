@@ -1,9 +1,15 @@
+'''
+LR3D: Tkinter GUI wrapper for lr3D algorithm. (Alp Kucukelbir, 2013)
+             
+Please see lr3D_algorithm.py for details and documentation.
+
+'''
 import Tkinter as tk
 from tkFileDialog import askopenfilename
 from tkMessageBox import showerror
 from tkMessageBox import showinfo
 
-from mrc import *
+from lr3D_fileIO import *
 from lr3D_algorithm import lr3D_algorithm
 
 def load_file(fileNameStringVar):

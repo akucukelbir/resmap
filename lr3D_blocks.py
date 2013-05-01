@@ -1,8 +1,18 @@
+'''
+lr3D_blocks: module containing blocking functions. All functions courtesy of Sebastien Berg.
+             LINK: http://www.mail-archive.com/numpy-discussion@scipy.org/msg38712.html
+
+Description of functions:
+    rolling_window: Create a view of `array` which for every point gives the n-dimensional neighbourhood of size window.
+      permute_axes: Change the arrays axes order or combine multiple axes into one.
+
+Requirements:
+    numpy
+
+Please see individual functions for attributions.
+'''
+
 import numpy as np
-
-## http://www.mail-archive.com/numpy-discussion@scipy.org/msg38712.html
-
-## Should cite and thank Sebastian Berg
 
 def rolling_window(array, window=(0,), asteps=None, wsteps=None, axes=None, intersperse=False):
     """Create a view of `array` which for every point gives the n-dimensional

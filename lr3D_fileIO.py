@@ -1,3 +1,18 @@
+'''
+lr3D_fileIO: module containing file input/output functions. All functions courtesy of the Rubinstein Group.
+             LINK: https://sites.google.com/site/rubinsteingroup
+
+Citation:
+	Zhao J, Brubaker MA, Rubinstein JL (2013). TMaCS: A hybrid template matching and
+	classification system for partially-automated particle selection. J Struct Biol 181, 231-42.
+
+Description of classes:
+    mrc_image: Read, process, and write MRC volumes.
+
+Requirements:
+	struct
+    numpy
+'''
 import struct,numpy
 
 class mrc_image:

@@ -1,20 +1,83 @@
+'''
+lr3D_helpers: module containing helper functions for LR3D algorithm (Alp Kucukelbir, 2013)
+
+Description of functions:
+			  update_progress: prints a progress bar
+	  			evaluateRuben: evaluates rubenPython at a point and returns absolute value difference
+	    		  rubenPython: Python implementation of Algorithm AS 204 Appl. Stat. (1984) Vol. 33, No.3 
+	make3DsteerableDirections: generates 16 unit normals that point to the edges and faces of the icosahedron
+
+Requirements:
+	scipy
+	numpy
+
+Please see individual functions for attributions.
+'''
+
 from scipy.stats import norm
 import numpy as np
 
 def update_progress(amtDone):
+	'''
+	Prints a progress bar. Courtesy of stackoverflew user aviraldg. 
+	LINK: http://stackoverflow.com/a/3173331
+	'''
 	print("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone * 100)),
 
 def evaluateRuben(c, alpha, weights):
+	'''
+	Wrapper function to evaluate rubenPython with inputs c and weights and compare to
+	desired alpha level. (Alp Kucukelbir, 2013)
+
+	Parameters
+	----------
+	c, weights: inputs into rubenPython. See rubenPython for details
+	     alpha: desired value to compare to rubenPython's result to
+
+	Returns
+	-------
+	The absolute value of the difference between alpha and rubenPython evaluated using
+	c and weights.
+	'''
 	evaluated = rubenPython(weights,c)
-	answer = np.abs(alpha-evaluated[2])
+	answer    = np.abs(alpha-evaluated[2])
 	return answer
 
 def rubenPython(weights, c, mult=None, delta=None, mode=1, maxit=100000, eps=1e-5):
-	"""
-	Cite the UofMontreal people
-	// Algorithm AS 204 Appl. Statist. (1984) Vol. 33, No.3
-	// ruben evaluates the probability that a positive definite quadratic form in Normal variates is less than a given value
-	"""
+	'''
+	Ruben evaluates the probability that a positive definite quadratic form in Normal variates is less than a given value
+
+	This function was initially presented by R.W. Farebrother as Algorithm AS 204 Appl. Statist. (1984) Vol. 33, No.3.
+
+	P. Lafaye de Micheaux <lafaye at dms.umontreal.ca> ported the algorithm to C++ and wrapped it in R in the fantastic
+	package `CompQuadForm' (http://cran.r-project.org/web/packages/CompQuadForm).
+
+	The citation for their recent paper treating this topic is:
+	P. Duchesne, P. Lafaye de Micheaux, Computing the distribution of quadratic forms: Further comparisons between the 
+	Liu-Tang-Zhang approximation and exact methods, Computational Statistics and Data Analysis, Volume 54, (2010), 858-862
+
+	I then translated it to Python/Numpy, while trying to maintain as much of the original logic flow as possible. 
+
+	I recommend that you look at the well-formatted documenetation within CompQuadForm to understand how the algorithm works
+
+	I will briefly summarize the critical parts here: (Alp Kucukelbir, 2013)
+
+	Parameters (copied from CompQuqadForm, modified to match new variable naming)
+	----------
+	weights: the distinct non-zero characteristic roots of A Sigma
+	      c: the value point at which the distribution function is to be evaluated
+	   mult: the vector of the respective orders of multiplicity for the weights
+	  delta: the non-centrality parameters
+	   mode: if mode>0 then \eqn{\beta=mode*\lambda_{min}} otherwise \eqn{\beta=\beta_B=2/(1/\lambda_{min}+1/\lambda_{max})}
+	  maxit: the maximum number of term K in equation below
+	    eps: the desired level of accuracy
+
+	Returns (copied from CompQuadForm)
+	-------
+	Computes P[Q>q] where \eqn{Q=\sum_{j=1}^n\lambda_j\chi^2(m_j,\delta_j^2)}{Q=sum_{j=1}^n lambda_j chi^2(m_j,delta_j^2)}. 
+	P[Q<q] is approximated by \eqn{\sum_k=0^{K-1} a_k P[\chi^2(m+2k)<q/\beta]} where 
+	\eqn{m=\sum_{j=1}^n m_j} and \eqn{\beta} is an arbitrary constant (as given by argument mode).
+	'''
 
 	# Initialize parameters
 	n     = weights.size
@@ -155,9 +218,32 @@ def rubenPython(weights, c, mult=None, delta=None, mode=1, maxit=100000, eps=1e-
 		return (dnsty, ifault, res)
 
 def make3DsteerableDirections(x, y, z):
-	"""
-	Cite the ICCASP paper and the Freeman 91 paper
-	"""
+	'''
+	Takes (x, y, z) numpy.mgrid inputs and generates 16 unit normals that point to the edges and 
+	faces of the icosahedron (Alp Kucukelbir, 2013)
+
+	See the following citation for an explanation of why this is needed for 3D steerable filters
+
+	Konstantinos G Derpanis and Jacob M Gryn. Three-dimensional nth derivative of
+	gaussian separable steerable filters. In Image Processing, 2005. ICIP 2005. IEEE In-
+	ternational Conference on, volume 3. IEEE, 2005.
+
+	Parameters
+	----------
+	(x,y,z): outputs of numpy.mgrid
+
+	Returns
+	-------
+	The unit normal matrices oriented towards the edges and faces of the icosahedron
+
+	Usage
+	-----
+	[x,y,z] = numpy.mgrid[	-1:1:complex(0,9),
+							-1:1:complex(0,9),
+							-1:1:complex(0,9) ]		
+	dirs    = make3DsteerableDirections(x, y, z)
+	
+	'''	
 	dirs = np.zeros(x.shape + (16,))
 
 	## 6 rotations for G2
