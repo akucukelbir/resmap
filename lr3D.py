@@ -131,7 +131,9 @@ def checkInputs():
 			showerror("Check Inputs", "The MRC mask could not be read.")
 			return
 
-	showinfo("LR3D","Inputs are all valid! Press OK to run. Check console for progress.")
+	showinfo("LR3D","Inputs are all valid! Press OK to close GUI and RUN. Check console for progress.")
+
+	root.destroy()
 
 	# Call LR3D
 	lr3D_algorithm(inputFileName = inputFileName,
