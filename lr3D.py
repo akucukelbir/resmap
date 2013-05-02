@@ -131,7 +131,7 @@ def checkInputs():
 			showerror("Check Inputs", "The MRC mask could not be read.")
 			return
 
-	showinfo("LR3D","Inputs are all valid! Press OK to close GUI and RUN. Check console for progress.")
+	showinfo("LR3D","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
 
 	root.destroy()
 
@@ -143,6 +143,8 @@ def checkInputs():
 		 Mmax = Mmax,
 		 Mstep = Mstep
 		 )
+
+	raw_input("\n:: DONE :: Press any key or close window to EXIT.")
 
 	return
 

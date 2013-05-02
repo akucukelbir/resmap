@@ -457,12 +457,12 @@ def lr3D_algorithm(**kwargs):
 	# cbar = f2.colorbar(cax)
 	# plt.show()
 
-	try: 
-		input = raw_input
-	except NameError: 
-		pass
+	#try: 
+	#	input = raw_input
+	#except NameError: 
+	#	pass
 
-	# raw_input("Press any key or close windows to EXIT")
+	#raw_input("Press any key or close windows to EXIT")
 
 
 # if __name__ == '__main__':
