@@ -37,7 +37,7 @@ def checkInputs():
 			data.read()
 			data = data.image_data
 		except:
-			showerror("Check Inputs", "The MRC file could not be read.")
+			showerror("Check Inputs", "The MRC volume could not be read.")
 			return
 
 	# Check voxel size
@@ -128,7 +128,7 @@ def checkInputs():
 			dataMask.read()
 			dataMask = np.bool(dataMask.image_data)
 		except:
-			showerror("Check Inputs", "The MRC mask could not be read.")
+			showerror("Check Inputs", "The MRC mask file could not be read.")
 			return
 
 	showinfo("LR3D","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
