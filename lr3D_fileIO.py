@@ -44,35 +44,38 @@ class mrc_image:
 		self.filename=filename
 
 	def read_head(self):
-		input_image=open(self.filename,'rb')
-		self.header1=input_image.read(224)
-		self.header2=input_image.read(800)
+		self.input_image=open(self.filename,'rb')
+		self.header1=self.input_image.read(224)
+		self.header2=self.input_image.read(800)
 		self.dim=struct.unpack(self.byte_pattern1,self.header1)[:3]   #(dimx,dimy,dimz)
-		input_image.close()
+		self.input_image.close()
 
-	def read(self):
-		input_image=open(self.filename,'rb')
-		self.header1=input_image.read(224)
-		self.header2=input_image.read(800)
-		header = struct.unpack(self.byte_pattern1,self.header1)
-		self.dim=header[:3]   #(dimx,dimy,dimz)
-		self.imagetype=header[3]  
+	def read(self,asBool):
+		self.input_image=open(self.filename,'rb')
+		self.header1=self.input_image.read(224)
+		self.header2=self.input_image.read(800)
+		self.header = struct.unpack(self.byte_pattern1,self.header1)
+		self.dim=self.header[:3]   #(dimx,dimy,dimz)
+		self.imagetype=self.header[3]  
 		#0: 8-bit signed, 1:16-bit signed, 2: 32-bit float, 6: unsigned 16-bit (non-std)
 		if (self.imagetype == 0):
-			imtype=numpy.uint8
+			self.imtype=numpy.uint8
 		elif (self.imagetype ==1):
-			imtype='h'
+			self.imtype='h'
 		elif (self.imagetype ==2):
-			imtype='f4'
+			self.imtype='f4'
 		elif (self.imagetype ==6):
-			imtype='H'
+			self.imtype='H'
 		else:
-			imtype='unknown'   #should put a fail here
-		input_image_dimension=(self.dim[2],self.dim[1],self.dim[0]) 
-		self.image_data=numpy.fromfile(file=input_image,dtype=imtype,
-									   count=self.dim[0]*self.dim[1]*self.dim[2]).reshape(input_image_dimension)
-		self.image_data=self.image_data.astype(numpy.float32)
-		input_image.close()
+			self.imtype='unknown'   #should put a fail here
+		self.input_image_dimension=(self.dim[2],self.dim[1],self.dim[0]) 
+		self.image_data=numpy.fromfile(file=self.input_image,dtype=self.imtype,
+									   count=self.dim[0]*self.dim[1]*self.dim[2]).reshape(self.input_image_dimension)
+		if asBool:
+			self.image_data=self.image_data.astype(numpy.bool)
+		else:	
+			self.image_data=self.image_data.astype(numpy.float32)
+		self.input_image.close()
 	
 	def write(self,image,output=numpy.ones(1)):
 		output_image=open(self.filename,'w')

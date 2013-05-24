@@ -34,7 +34,7 @@ def checkInputs():
 		try:
 			inputFileName = volFileName.get()
 			data = mrc_image(inputFileName)
-			data.read()
+			data.read(asBool=0)
 			data = data.image_data
 		except:
 			showerror("Check Inputs", "The MRC volume could not be read.")
@@ -111,8 +111,8 @@ def checkInputs():
 			showerror("Check Inputs", "'stepRes' is not a valid number. Please input a valid step size in Angstroms.")
 			return
 
-		if Mstep < 1.0:
-			showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 1.0 in Angstroms.")
+		if Mstep < 0.0:
+			showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.0 in Angstroms.")
 			return	
 
 	# Check mask file name and try loading MRC file
@@ -125,8 +125,8 @@ def checkInputs():
 		try:
 			maskVolFileName = maskFileName.get()
 			dataMask = mrc_image(maskVolFileName)
-			dataMask.read()
-			dataMask = np.bool(dataMask.image_data)
+			dataMask.read(asBool=1)
+			dataMask = dataMask.image_data
 		except:
 			showerror("Check Inputs", "The MRC mask file could not be read.")
 			return
@@ -136,12 +136,15 @@ def checkInputs():
 	root.destroy()
 
 	# Call LR3D
-	lr3D_algorithm(inputFileName = inputFileName,
-		 data = data,
-		 vxSize = vxSize,
-		 Mbegin = Mbegin,
-		 Mmax = Mmax,
-		 Mstep = Mstep
+	lr3D_algorithm(
+			inputFileName = inputFileName,
+			data          = data,
+			vxSize        = vxSize,
+			pValue        = pValue,
+			Mbegin        = Mbegin,
+			Mmax          = Mmax,
+			Mstep         = Mstep,
+			dataMask      = dataMask
 		 )
 
 	raw_input("\n:: DONE :: Press any key or close window to EXIT.")

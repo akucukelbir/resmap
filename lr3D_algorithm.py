@@ -3,7 +3,7 @@ lr3D_algorithm: module containing main local resolution 3D algorithm. (Alp Kucuk
              
 
 Description of functions:
-    lr3D_algorithm: Computed the local resolution map of a density map
+    lr3D_algorithm: Compute the local resolution map of a density map
 
 Requirements:
     numpy
@@ -23,18 +23,18 @@ from lr3D_blocks import *
 from lr3D_fileIO import *
 
 # import matplotlib.pyplot as plt
-# from sphericalProfile import *
+# from lr3D_sphericalprofile import *
 
 def lr3D_algorithm(**kwargs):
 	'''
 	lr3D_algorithm implements the procedure described in the following article: (Alp Kucukelbir, 2013)
 
-	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, Quantifying the Local Resolution of 3D Density Maps, preprint.
+	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, Local Resolution of Cryo-EM Density Maps, preprint.
 
 	The procedure will (coarsely speaking) do the following things:	
 		1. Load the MRC volume (unless it is passed from the GUI)
 		2. Calculate a mask that separates the particle from the background
-		(BETA: 2a. Prewhiten the volume if necessary) 
+		(BETA: 2a. Amplitude correction of the volume if necessary) 
 		3. Form the required matrices for a local sinusoid-like model of a certain scale
 		4. Estimate the variance from non-overlapping blocks in the background
 		5. Calculate the likelihood ratio statistic
@@ -52,7 +52,7 @@ def lr3D_algorithm(**kwargs):
 
 	Optional Parameters 
 	----------
-	  Mbegin: starting resolution (defaults to 2.5 * vxSize)
+	  Mbegin: starting resolution (defaults to closest half point to (2.5 * vxSize))
 	 	Mmax: stopping resolution (defaults to 4 * vxSize)
 	   Mstep: step size for resolution queries (usually 0.5 or 1.0, in Angstroms)
 	dataMask: mask loaded as a numpy array (default: algorithm tries to compute a mask automatically)
@@ -71,68 +71,80 @@ def lr3D_algorithm(**kwargs):
 	Beta Features
 	-------------
 	Amplitude correction: there are snippets below that try to automatically perform a very basic amplitude 
-	correction. Uncomment and re-run at your own peril. 
+	correction. Set preWhiten = True and run at your own peril. 
 	'''
 
 	print '== BEGIN localResolution3D ==',
-	preWhiten = False
 	tBegin = time()
 
+	debugMode = False
+	preWhiten = False
+
+	if debugMode:
+		import matplotlib.pyplot as plt
+
+	if preWhiten:
+		from lr3D_sphericalprofile import sphericalAverage
+	
 	## Process inputs to function
 	inputFileName = kwargs.get('inputFileName','')
 	data          = kwargs.get('data', 0)
-	vxSize        = kwargs.get('vxSize', 0)
+	vxSize        = kwargs.get('vxSize', 1)
 	pValue        = kwargs.get('pValue', 0.05)
-
-	Mbegin = kwargs.get('Mbegin', 0.0 ) 
-	Mmax   = kwargs.get('Mmax',   0.0 )
-	Mstep  = kwargs.get('Mstep',  1.0 ) 
-
-	dataMask = kwargs.get('dataMask',0)
+	
+	Mbegin        = kwargs.get('Mbegin', 0.0 ) 
+	Mmax          = kwargs.get('Mmax',   0.0 )
+	Mstep         = kwargs.get('Mstep',  1.0 ) 
+	
+	dataMask      = kwargs.get('dataMask', 0)
 
 	if Mbegin == 0.0:
 		Mbegin = round((2.5*vxSize)/0.5)*0.5 # round to the nearest 0.5
-	M      = Mbegin 
+	M = Mbegin 
 
 	if Mmax == 0.0:
 		Mmax = round((4*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
 	(fname,ext)   = os.path.splitext(inputFileName)
 
-	# Load files from MRC file
+	# Load volume from MRC file
 	print '\n\n= Loading Volume'
-	tStart    = time()
-	if data.ndim != 3: # the volume wasn't passed in for some reason
+	tStart = time()
+	if hasattr(data,'ndim') == False: # The volume wasn't passed in for some reason
 		data = mrc_image(inputFileName)
-		data.read()
+		data.read(asBool=0)
 		data = data.image_data
-	n 	 = data.shape[0]
-	N 	 = int(n)
-	m, s      = divmod(time() - tStart, 60)
+	n = data.shape[0]
+	N = int(n)
+	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print '\n= Computing Mask Separating Particle from Background'
 	tStart    = time()
+	
 	# We assume the particle is at the center of the volume
 	# Create spherical mask
 	[x,y,z] = np.mgrid[ -n/2:n/2:complex(0,n),
 						-n/2:n/2:complex(0,n),
 						-n/2:n/2:complex(0,n) ]
-	R       = np.array(np.sqrt(x**2 + y**2 + z**2),dtype='float32')
+	R       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
 	Rinside = R < n/2
 	del (x,y,z)	
 
-	# Compute mask separating the particle from background
-	dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
-	dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
-	mask         = np.bitwise_and(dataMask, R < n/2 - 9)
-	maskORIG     = mask
+	# Check to see if mask volume was already provided
+	if hasattr(dataMask,'ndim') == False:
+		# Compute mask separating the particle from background
+		dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
+		dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
+
+	mask         = np.bitwise_and(dataMask, R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
 	del dataMask	
 
 	m, s      = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
+	# BETA: Amplitude Correction
 	if preWhiten:
 		print '\n= Calculating Spherically Averaged Power Spectrum of Volume'
 		tStart    = time()
@@ -168,16 +180,17 @@ def lr3D_algorithm(**kwargs):
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-		# plt.plot(xpoly,dataSpect**2,'b', 
-		# 		 xpoly,np.exp(peval)**2,'r',
-		# 		 xpoly,dataPWSpect**2,'m')
-		# plt.yscale('log')
-		# plt.show()
+		plt.plot(xpoly,dataSpect**2,'b', 
+				 xpoly,np.exp(peval)**2,'r',
+				 xpoly,dataPWSpect**2,'m')
+		plt.yscale('log')
+		plt.show()
 
-		# f, (ax1, ax2) = plt.subplots(1, 2)
-		# ax1.imshow(data[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax2.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# plt.show()
+		if debugMode:
+			f, (ax1, ax2) = plt.subplots(1, 2)
+			ax1.imshow(data[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
+			ax2.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
+			plt.show()
 
 		data = dataPW
 
@@ -193,18 +206,19 @@ def lr3D_algorithm(**kwargs):
 		winSize = 2*r+1		
 		print "winSize = %.2f" % winSize
 
-		# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		# ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		if debugMode:
+			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+			ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+			ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+			ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+			ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 
-		# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		# ax1.imshow(mask[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-		# ax2.imshow(mask[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-		# ax3.imshow(mask[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-		# ax4.imshow(mask[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-		# plt.show()
+			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+			ax1.imshow(mask[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			ax2.imshow(mask[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			ax3.imshow(mask[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			ax4.imshow(mask[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			plt.show()
 
 		# Define range of x, y, z for steerable bases
 		[x,y,z] = a*np.mgrid[	-r*vxSize:r*vxSize:complex(0,winSize),
@@ -266,7 +280,7 @@ def lr3D_algorithm(**kwargs):
 
 		# Use numpy stride tricks to compute "view" into NON-overlapping
 		# blocks of 2*r+1. Does not allocate any extra memory
-		maskBGview = rolling_window(maskBG, 								# WHOA!
+		maskBGview = rolling_window(maskBG, 								
 						window=(winSize, winSize, winSize), 
 						asteps=(winSize, winSize, winSize))
 
@@ -406,8 +420,8 @@ def lr3D_algorithm(**kwargs):
 		# Update the mask to voxels that failed this level's likelihood test
 		mask = np.array(mask - res, dtype='bool')
 		newSumOfMask = np.sum(mask)
-		print "oldSumOfMask = %d" % oldSumOfMask
-		print "newSumOfMask = %d" % newSumOfMask
+		print "Number of unassigned voxels from previous iteration = %d" % oldSumOfMask
+		print "Number of unassigned voxels from current iteration  = %d" % newSumOfMask
 		if oldSumOfMask-newSumOfMask < n and newSumOfMask < (n**2):
 			print 'We have probably covered all the voxels of interest.'
 			moreToProcess = False
@@ -427,7 +441,7 @@ def lr3D_algorithm(**kwargs):
 
 	# Write results out as MRC volume
 	outputMRC = mrc_image(inputFileName)
-	outputMRC.read()
+	outputMRC.read(asBool=0)
 	outputMRC.change_filename(fname+"_LR3D"+ext)
 	outputMRC.write(np.array(resTOTAL,dtype='float32'))
 
@@ -438,24 +452,25 @@ def lr3D_algorithm(**kwargs):
 	print "\nMEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_LR3D" + ext
 
-	## Plots
-	# f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-	# ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
- 
-	# f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
-	# ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# cax = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	# ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	# ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	# ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-	# cbar = f2.colorbar(cax)
-	# plt.show()
+	if debugMode:
+		# Plots
+		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+		ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	 
+		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
+		ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		cax = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+		ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+		ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+		ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
+		cbar = f2.colorbar(cax)
+		plt.show()
 
 	#try: 
 	#	input = raw_input
