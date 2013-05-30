@@ -1,6 +1,6 @@
-Local Resolution 3D (LR3D)
+Local Resolution Map (ResMap)
 ==========================
-Local Resolution 3D (LR3D) is a Python (NumPy/SciPy) application with a Tkinter GUI. It is a software package for computing the location resolution of 3D density maps studied in structural biology, primarily electron cryo-microscopy (cryo-EM).
+Local Resolution Map (ResMap) is a Python (NumPy/SciPy) application with a Tkinter GUI. It is a software package for computing the local resolution of 3D density maps studied in structural biology, primarily electron cryo-microscopy (cryo-EM).
 
 How Do I Use It?
 ----------------

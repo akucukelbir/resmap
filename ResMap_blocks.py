@@ -1,5 +1,5 @@
 '''
-lr3D_blocks: module containing blocking functions. All functions courtesy of Sebastien Berg.
+ResMap_blocks: module containing blocking functions. All functions courtesy of Sebastien Berg.
              LINK: http://www.mail-archive.com/numpy-discussion@scipy.org/msg38712.html
 
 Description of functions:

@@ -1,5 +1,5 @@
 '''
-lr3D_sphericalprofile: module containing spherical profiling functions for LR3D algorithm (Alp Kucukelbir, 2013)
+ResMap_sphericalprofile: module containing spherical profiling functions for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
 			  	sum_by_group: efficient helper function to sum values in array using another index

@@ -1,5 +1,5 @@
 '''
-lr3D_fileIO: module containing file input/output functions. All functions courtesy of the Rubinstein Group.
+ResMap_fileIO: module containing file input/output functions. All functions courtesy of the Rubinstein Group.
              LINK: https://sites.google.com/site/rubinsteingroup
 
 Citation:

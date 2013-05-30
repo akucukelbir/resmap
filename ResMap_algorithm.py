@@ -1,14 +1,14 @@
 '''
-lr3D_algorithm: module containing main local resolution 3D algorithm. (Alp Kucukelbir, 2013)
+ResMap_algorithm: module containing main local resolution 3D algorithm. (Alp Kucukelbir, 2013)
              
 
 Description of functions:
-    lr3D_algorithm: Compute the local resolution map of a density map
+    ResMap_algorithm: Compute the local resolution map of a density map
 
 Requirements:
     numpy
     scipy
-    lr3D submodules
+    ResMap submodules
 
 '''
 import os, sys
@@ -18,18 +18,15 @@ import numpy as np
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
 
-from lr3D_helpers import *
-from lr3D_blocks import *
-from lr3D_fileIO import *
+from ResMap_helpers import *
+from ResMap_blocks import *
+from ResMap_fileIO import *
 
-# import matplotlib.pyplot as plt
-# from lr3D_sphericalprofile import *
-
-def lr3D_algorithm(**kwargs):
+def ResMap_algorithm(**kwargs):
 	'''
-	lr3D_algorithm implements the procedure described in the following article: (Alp Kucukelbir, 2013)
+	ResMap_algorithm implements the procedure described in the following article: (Alp Kucukelbir, 2013)
 
-	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, Local Resolution of Cryo-EM Density Maps, preprint.
+	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, preprint.
 
 	The procedure will (coarsely speaking) do the following things:	
 		1. Load the MRC volume (unless it is passed from the GUI)
@@ -52,20 +49,20 @@ def lr3D_algorithm(**kwargs):
 
 	Optional Parameters 
 	----------
-	  Mbegin: starting resolution (defaults to closest half point to (2.5 * vxSize))
+	  Mbegin: starting resolution (defaults to closest half point to (2.0 * vxSize))
 	 	Mmax: stopping resolution (defaults to 4 * vxSize)
 	   Mstep: step size for resolution queries (usually 0.5 or 1.0, in Angstroms)
 	dataMask: mask loaded as a numpy array (default: algorithm tries to compute a mask automatically)
 
 	Assumptions 
 	-------
-	LR3D assumes that the density map being analyzed has not been filtered in any way, and that 
+	ResMap assumes that the density map being analyzed has not been filtered in any way, and that 
 	some reasonable degree of amplitude correction (B-factor sharpening) has been applied, such that
 	the spherical spectrum of the map is relatively white towards the Nyquist end of the spectrum.
 
 	Returns 
 	-------
-	Writes out a new MRC volume in the same folder as the input MRC volume with '_LR3d' appended to
+	Writes out a new MRC volume in the same folder as the input MRC volume with '_resmap' appended to
 	the file name. Values are in Angstrom and represent the local resolution assigned to each point.
 
 	Beta Features
@@ -74,7 +71,7 @@ def lr3D_algorithm(**kwargs):
 	correction. Set preWhiten = True and run at your own peril. 
 	'''
 
-	print '== BEGIN localResolution3D ==',
+	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
 
 	debugMode = False
@@ -84,7 +81,7 @@ def lr3D_algorithm(**kwargs):
 		import matplotlib.pyplot as plt
 
 	if preWhiten:
-		from lr3D_sphericalprofile import sphericalAverage
+		from ResMap_sphericalprofile import sphericalAverage
 	
 	## Process inputs to function
 	inputFileName = kwargs.get('inputFileName','')
@@ -442,7 +439,7 @@ def lr3D_algorithm(**kwargs):
 	# Write results out as MRC volume
 	outputMRC = mrc_image(inputFileName)
 	outputMRC.read(asBool=0)
-	outputMRC.change_filename(fname+"_LR3D"+ext)
+	outputMRC.change_filename(fname+"_resmap"+ext)
 	outputMRC.write(np.array(resTOTAL,dtype='float32'))
 
 	m, s = divmod(time() - tBegin, 60)
@@ -450,7 +447,7 @@ def lr3D_algorithm(**kwargs):
 
 	resTOTALma  = np.ma.masked_where(resTOTAL == 0, resTOTAL)	
 	print "\nMEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
-	print "\nRESULT WRITTEN to MRC file: " + fname + "_LR3D" + ext
+	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 
 	if debugMode:
 		# Plots

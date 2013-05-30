@@ -1,7 +1,7 @@
 '''
-LR3D: Tkinter GUI wrapper for lr3D algorithm. (Alp Kucukelbir, 2013)
+ResMap: Tkinter GUI wrapper for ResMap algorithm. (Alp Kucukelbir, 2013)
              
-Please see lr3D_algorithm.py for details and documentation.
+Please see ResMap_algorithm.py for details and documentation.
 
 '''
 import Tkinter as tk
@@ -9,13 +9,13 @@ from tkFileDialog import askopenfilename
 from tkMessageBox import showerror
 from tkMessageBox import showinfo
 
-from lr3D_fileIO import *
-from lr3D_algorithm import lr3D_algorithm
+from ResMap_fileIO import *
+from ResMap_algorithm import ResMap_algorithm
 
 def load_file(fileNameStringVar):
 	options =  {}
 	# options['filetypes'] = [ ("All files", ".*"), ("MRC map", ".map,.mrc") ]
-	options['title'] = "LR3D - Select data file"
+	options['title'] = "ResMap - Select data file"
 	fname = askopenfilename(**options)
 	if fname:
 		try:
@@ -131,12 +131,12 @@ def checkInputs():
 			showerror("Check Inputs", "The MRC mask file could not be read.")
 			return
 
-	showinfo("LR3D","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
+	showinfo("ResMap","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
 
 	root.destroy()
 
-	# Call LR3D
-	lr3D_algorithm(
+	# Call ResMap
+	ResMap_algorithm(
 			inputFileName = inputFileName,
 			data          = data,
 			vxSize        = vxSize,
@@ -154,7 +154,7 @@ def checkInputs():
 
 # Create root window 
 root = tk.Tk()
-root.title("Local Resolution 3D (LR3D)")
+root.title("Local Resolution Map (ResMap)")
 
 # Create frame widget that holds everything 
 mainframe = tk.Frame(root)
@@ -169,7 +169,7 @@ alphaValue   = tk.StringVar(value="0.05")
 minRes       = tk.StringVar(value="0.0")
 maxRes       = tk.StringVar(value="0.0")
 stepRes      = tk.StringVar(value="1.0")
-maskFileName = tk.StringVar(value="None; LR3D will automatically compute a mask. Load File to override.")
+maskFileName = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
 
 # ROW 0
 tk.Label(mainframe, text="Required Inputs", font = "Helvetica 12 bold").grid(column=1, row=0, columnspan=10, sticky=tk.W)
@@ -207,7 +207,7 @@ tk.Label(mainframe, text="Min Resolution:").grid(column=1, row=5, sticky=tk.E)
 minRes_entry = tk.Entry(mainframe, width=5, textvariable=minRes)
 minRes_entry.grid(column=2, row=5, sticky=tk.W)
 
-tk.Label(mainframe, text="in Angstroms (default: 0; algorithm will start at 2.5 * voxelSize)").grid(column=3, row=5, sticky=tk.W)
+tk.Label(mainframe, text="in Angstroms (default: 0; algorithm will start at just above 2.0 * voxelSize)").grid(column=3, row=5, sticky=tk.W)
 
 # ROW 6
 tk.Label(mainframe, text="Max Resolution:").grid(column=1, row=6, sticky=tk.E)

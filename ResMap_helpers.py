@@ -1,5 +1,5 @@
 '''
-lr3D_helpers: module containing helper functions for LR3D algorithm (Alp Kucukelbir, 2013)
+ResMap_helpers: module containing helper functions for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
 			  update_progress: prints a progress bar
