@@ -20,8 +20,13 @@ You may also download the source files (Python) and run them using your own Pyth
 
 Requirements are:
 
-* Python (2.7+)
+* Python (2.7+) [not tested on Python 3.X]
 * NumPy (1.6+)
 * SciPy (0.11+)
 
-We have also provided two test volumes (under test-data) of a symmetric "chirp signal" with two levels of noise.
+We have also provided simulated volumes (under test-data) of a radial symmetric "chirp signal" with two levels of white and 1/f noise.
+
+Version History
+---------------
+* **(1.0.1)** [30/05/2013] Mask volume bug corrected.
+* **(1.0.0)** [24/05/2013] Initial commit.
