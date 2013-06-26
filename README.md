@@ -28,5 +28,6 @@ We have also provided simulated volumes (under test-data) of a radial symmetric 
 
 Version History
 ---------------
+* **(1.0.2)** [26/06/2013] Step size limits corrected.
 * **(1.0.1)** [30/05/2013] Mask volume bug corrected.
 * **(1.0.0)** [24/05/2013] Initial commit.
