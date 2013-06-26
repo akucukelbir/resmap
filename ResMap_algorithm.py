@@ -51,7 +51,7 @@ def ResMap_algorithm(**kwargs):
 	----------
 	  Mbegin: starting resolution (defaults to closest half point to (2.0 * vxSize))
 	 	Mmax: stopping resolution (defaults to 4 * vxSize)
-	   Mstep: step size for resolution queries (usually 0.5 or 1.0, in Angstroms)
+	   Mstep: step size for resolution queries (min 0.5, default 1.0, in Angstroms)
 	dataMask: mask loaded as a numpy array (default: algorithm tries to compute a mask automatically)
 
 	Assumptions 
@@ -417,10 +417,11 @@ def ResMap_algorithm(**kwargs):
 		# Update the mask to voxels that failed this level's likelihood test
 		mask = np.array(mask - res, dtype='bool')
 		newSumOfMask = np.sum(mask)
-		print "Number of unassigned voxels from previous iteration = %d" % oldSumOfMask
-		print "Number of unassigned voxels from current iteration  = %d" % newSumOfMask
+		print "Number of voxels assigned in this iteration = %d" % (oldSumOfMask-newSumOfMask)
+		# print "Number of unassigned voxels from previous iteration = %d" % oldSumOfMask
+		# print "Number of unassigned voxels from current iteration  = %d" % newSumOfMask
 		if oldSumOfMask-newSumOfMask < n and newSumOfMask < (n**2):
-			print 'We have probably covered all the voxels of interest.'
+			print 'We have probably covered all voxels of interest.'
 			moreToProcess = False
 		oldSumOfMask = newSumOfMask
 
@@ -432,9 +433,9 @@ def ResMap_algorithm(**kwargs):
 		M += Mstep
 
 
-	# Set all voxels that were outside of the mask or that failed all resolution tests to 0
+	# Set all voxels that were outside of the mask or that failed all resolution tests to 1000
 	zeroVoxels = (resTOTAL==0)
-	resTOTAL[zeroVoxels] = 0
+	resTOTAL[zeroVoxels] = 1000
 
 	# Write results out as MRC volume
 	outputMRC = mrc_image(inputFileName)

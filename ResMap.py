@@ -111,8 +111,8 @@ def checkInputs():
 			showerror("Check Inputs", "'stepRes' is not a valid number. Please input a valid step size in Angstroms.")
 			return
 
-		if Mstep < 0.0:
-			showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.0 in Angstroms.")
+		if Mstep < 0.5:
+			showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.5 in Angstroms.")
 			return	
 
 	# Check mask file name and try loading MRC file
@@ -223,7 +223,7 @@ tk.Label(mainframe, text="Step Size:").grid(column=1, row=7, sticky=tk.E)
 stepRes_entry = tk.Entry(mainframe, width=6, textvariable=stepRes)
 stepRes_entry.grid(column=2, row=7, sticky=tk.W)
 
-tk.Label(mainframe, text="in Angstroms (default: 1.0, decrease if finer step size is desired)").grid(column=3, row=7, sticky=tk.W)
+tk.Label(mainframe, text="in Angstroms (min: 0.5, default: 1.0, decrease if finer step size is desired)").grid(column=3, row=7, sticky=tk.W)
 
 # ROW 8
 tk.Label(mainframe, text="Mask Volume:").grid(column=1, row=8, sticky=tk.E)
