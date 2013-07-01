@@ -151,6 +151,18 @@ def checkInputs():
 
 	return
 
+def showDocumentation():
+	showinfo("ResMap Documentation","Please visit http://sf.net/p/resmap for help.")
+	return
+
+def showAbout():
+	showinfo("About ResMap",
+		("This is ResMap v1.0.2.\n\n"
+		 "If you use ResMap in your work, please cite the following paper:\n\n" 
+		 "A. Kucukelbir, F.J. Sigworth, H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, In Review, 2013.\n\n"
+		 "This package is released under the Creative Commons Attribution-NonCommercial-NoDerivs CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)\n\n"
+		 "Please send comments, suggestions, and bug reports to alp.kucukelbir@yale.edu or hemant.tagare@yale.edu"))
+	return
 
 # Create root window 
 root = tk.Tk()
@@ -161,6 +173,15 @@ mainframe = tk.Frame(root)
 mainframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
 mainframe.columnconfigure(0, weight=1)
 mainframe.rowconfigure(   0, weight=1)
+
+# Create menubar
+menubar = tk.Menu(root)
+root.config(menu=menubar)
+
+helpMenu = tk.Menu(menubar)
+helpMenu.add_command(label="Documentation", command=showDocumentation)
+helpMenu.add_command(label="About ResMap",  command=showAbout)
+menubar.add_cascade(label="Help", menu=helpMenu)
 
 # Create tk StringVars 
 volFileName  = tk.StringVar()
