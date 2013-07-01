@@ -33,9 +33,10 @@ def checkInputs():
 	else:
 		try:
 			inputFileName = volFileName.get()
-			data = mrc_image(inputFileName)
-			data.read(asBool=0)
-			data = data.image_data
+			data = MRC_Data(inputFileName,'ccp4')
+			# data = mrc_image(inputFileName)
+			# data.read(asBool=0)
+			# data = data.image_data
 		except:
 			showerror("Check Inputs", "The MRC volume could not be read.")
 			return
@@ -124,9 +125,10 @@ def checkInputs():
 	else:
 		try:
 			maskVolFileName = maskFileName.get()
-			dataMask = mrc_image(maskVolFileName)
-			dataMask.read(asBool=1)
-			dataMask = dataMask.image_data
+			dataMask = MRC_Data(maskVolFileName,'ccp4')
+			# dataMask = mrc_image(maskVolFileName)
+			# dataMask.read(asBool=1)
+			# dataMask = dataMask.image_data
 		except:
 			showerror("Check Inputs", "The MRC mask file could not be read.")
 			return

@@ -1,10 +1,10 @@
 '''
 ResMap_fileIO: module containing file input/output functions. All functions have been 
-               chopped up and mixed together from the excellent UCSF Chimera package. I
-               desperate hope I didn't ruin something while doing so. Seems to work.
+               chopped up and blended together from the excellent UCSF Chimera package. I
+               desperate hope I didn't ruin something while doing so. Seems to work... for now.
 
-               LINK: www.cgl.ucsf.edu/chimera/‎
-
+               LINK: www.cgl.ucsf.edu/chimera
+               
 Citation:
   UCSF Chimera--a visualization system for exploratory research and analysis. 
   Pettersen EF, Goddard TD, Huang CC, Couch GS, Greenblatt DM, Meng EC, Ferrin TE. 
@@ -681,7 +681,7 @@ def mrc2000_header(mrcdata, value_type, stats = None):
     strings = [
         binary_string(size, int32),  # nx, ny, nz
         binary_string(mode, int32),  # mode
-        binary_string((0,0,0), int32), # nxstart, nystart, nzstart
+        binary_string((mrcdata.header['ncstart'],mrcdata.header['nrstart'],mrcdata.header['nsstart']), int32),			# binary_string((0,0,0), int32), # nxstart, nystart, nzstart
         binary_string(size, int32),  # mx, my, mz
         binary_string(cell_size, float32), # cella
         binary_string(mrcdata.cell_angles, float32), # cellb

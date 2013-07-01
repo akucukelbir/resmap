@@ -85,7 +85,7 @@ def ResMap_algorithm(**kwargs):
 	
 	## Process inputs to function
 	inputFileName = kwargs.get('inputFileName','')
-	data          = kwargs.get('data', 0)
+	dataMRC       = kwargs.get('data', 0)
 	vxSize        = kwargs.get('vxSize', 1)
 	pValue        = kwargs.get('pValue', 0.05)
 	
@@ -104,13 +104,14 @@ def ResMap_algorithm(**kwargs):
 
 	(fname,ext)   = os.path.splitext(inputFileName)
 
-	# Load volume from MRC file
+	# Extract volume from MRC class
 	print '\n\n= Loading Volume'
 	tStart = time()
-	if hasattr(data,'ndim') == False: # The volume wasn't passed in for some reason
-		data = mrc_image(inputFileName)
-		data.read(asBool=0)
-		data = data.image_data
+	data = dataMRC.matrix
+	# if hasattr(data,'ndim') == False: # The volume wasn't passed in for some reason
+	# 	data = mrc_image(inputFileName)
+	# 	data.read(asBool=0)
+	# 	data = data.image_data
 	n = data.shape[0]
 	N = int(n)
 	m, s = divmod(time() - tStart, 60)
@@ -133,6 +134,8 @@ def ResMap_algorithm(**kwargs):
 		# Compute mask separating the particle from background
 		dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
 		dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
+	else:
+		dataMask = np.array(dataMask.matrix, dtype='bool')
 
 	mask         = np.bitwise_and(dataMask, R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
@@ -433,21 +436,23 @@ def ResMap_algorithm(**kwargs):
 		M += Mstep
 
 
-	# Set all voxels that were outside of the mask or that failed all resolution tests to 1000
+	# Set all voxels that were outside of the mask or that failed all resolution tests to 50 A
 	zeroVoxels = (resTOTAL==0)
-	resTOTAL[zeroVoxels] = 1000
+	resTOTAL[zeroVoxels] = 50
 
 	# Write results out as MRC volume
-	outputMRC = mrc_image(inputFileName)
-	outputMRC.read(asBool=0)
-	outputMRC.change_filename(fname+"_resmap"+ext)
-	outputMRC.write(np.array(resTOTAL,dtype='float32'))
+	dataMRC.matrix = np.array(resTOTAL,dtype='float32')
+	write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
+	# outputMRC = mrc_image(inputFileName)
+	# outputMRC.read(asBool=0)
+	# outputMRC.change_filename(fname+"_resmap"+ext)
+	# outputMRC.write(np.array(resTOTAL,dtype='float32'))
 
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	resTOTALma  = np.ma.masked_where(resTOTAL == 0, resTOTAL)	
-	print "\nMEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
+	resTOTALma  = np.ma.masked_where(resTOTAL == 50, resTOTAL)	
+	print "\nMEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 
 	if debugMode:
