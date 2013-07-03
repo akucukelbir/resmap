@@ -21,6 +21,7 @@ def update_progress(amtDone):
 	'''
 	Prints a progress bar. Courtesy of stackoverflew user aviraldg. 
 	LINK: http://stackoverflow.com/a/3173331
+
 	'''
 	print("\rProgress: [{0:50s}] {1:.1f}%".format('#' * int(amtDone * 50), amtDone * 100)),
 
@@ -38,6 +39,7 @@ def evaluateRuben(c, alpha, weights):
 	-------
 	The absolute value of the difference between alpha and rubenPython evaluated using
 	c and weights.
+
 	'''
 	evaluated = rubenPython(weights,c)
 	answer    = np.abs(alpha-evaluated[2])
@@ -77,6 +79,7 @@ def rubenPython(weights, c, mult=None, delta=None, mode=1, maxit=100000, eps=1e-
 	Computes P[Q>q] where \eqn{Q=\sum_{j=1}^n\lambda_j\chi^2(m_j,\delta_j^2)}{Q=sum_{j=1}^n lambda_j chi^2(m_j,delta_j^2)}. 
 	P[Q<q] is approximated by \eqn{\sum_k=0^{K-1} a_k P[\chi^2(m+2k)<q/\beta]} where 
 	\eqn{m=\sum_{j=1}^n m_j} and \eqn{\beta} is an arbitrary constant (as given by argument mode).
+	
 	'''
 
 	# Initialize parameters

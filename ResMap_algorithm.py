@@ -29,7 +29,7 @@ def ResMap_algorithm(**kwargs):
 	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, preprint.
 
 	The procedure will (coarsely speaking) do the following things:	
-		1. Load the MRC volume (unless it is passed from the GUI)
+		1. Grab the volume from the the MRC data structure (class)
 		2. Calculate a mask that separates the particle from the background
 		(BETA: 2a. Amplitude correction of the volume if necessary) 
 		3. Form the required matrices for a local sinusoid-like model of a certain scale
@@ -74,7 +74,7 @@ def ResMap_algorithm(**kwargs):
 	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
 
-	debugMode = False
+	debugMode = True
 	preWhiten = False
 
 	if debugMode:
