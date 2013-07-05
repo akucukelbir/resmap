@@ -69,9 +69,9 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	# If the mean and variance are basically zero after maxInd, it is highly likely that the volume was low-pass filtered
 	thr = 1e-6
 	if abs(m) < thr and v < thr:
-		return True
+		return {'outcome':True, 'factor': float(maxInd)/dataPowerSpectrum.size}
 	else:
-		return False
+		return {'outcome':False, 'factor': 0.0}
 
 def calculatePowerSpectrum(data):
 	

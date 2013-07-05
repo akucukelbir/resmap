@@ -13,6 +13,8 @@ from ResMap_fileIO import *
 from ResMap_spectrumTools import *
 from ResMap_algorithm import ResMap_algorithm
 
+from scipy import ndimage
+
 class ResMapApp(object):
 
 	"""GUI Tkinter class for ResMap"""
@@ -20,7 +22,7 @@ class ResMapApp(object):
 	def __init__(self, parent):
 
 		global version
-		version = "1.0.3"
+		version = "1.0.4"
 
 		self.parent = parent
 		self.parent.title("Local Resolution Map (ResMap) v" + version)
@@ -40,7 +42,9 @@ class ResMapApp(object):
 		self.helpMenu.add_command(label="About ResMap",  command=self.showAbout)
 		self.menubar.add_cascade(label="Help", menu=self.helpMenu)
 
-		# Create tk StringVars 
+		# Create Tk variables
+		self.graphicalOutput = tk.IntVar()
+
 		self.volFileName  = tk.StringVar()
 		self.voxelSize    = tk.StringVar()
 		self.alphaValue   = tk.StringVar(value="0.05")
@@ -112,7 +116,9 @@ class ResMapApp(object):
 		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=8, sticky=tk.W)
 
 		# ROW 9
-		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold", command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=9, sticky=tk.W)
+		tk.Checkbutton(self.mainframe, text="GRAPHICAL OUTPUT", variable=self.graphicalOutput).grid(column=1, row=9, columnspan=4, sticky=tk.E)
+
+		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold", command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=9, sticky=tk.E)
 
 		# Setup grid with padding
 		for child in self.mainframe.winfo_children(): child.grid_configure(padx=5, pady=10)
@@ -140,14 +146,6 @@ class ResMapApp(object):
 			try:
 				inputFileName = self.volFileName.get()
 				data = MRC_Data(inputFileName,'ccp4')
-				dataPowerSpectrum = calculatePowerSpectrum(data.matrix)
-				
-				# displayPowerSpectrum(data.matrix)
-
-				if isPowerSpectrumLPF(dataPowerSpectrum):
-					showerror("Check Inputs", "The volume appears to be low-pass filtered.\n\nPlease input a volume that has not been low-pass filtered.")
-					return
-
 			except:
 				showerror("Check Inputs", "The MRC volume could not be read.")
 				return
@@ -244,6 +242,22 @@ class ResMapApp(object):
 				showerror("Check Inputs", "The MRC mask file could not be read.")
 				return
 
+		dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
+		# displayPowerSpectrum(data.matrix)
+		LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
+
+		# LPFtest = {}
+		# LPFtest['outcome'] = True
+		# LPFtest['factor'] = 0.656
+
+		if LPFtest['outcome']:
+			showinfo("Spectral Tools", "The volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.")
+			zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+			data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
+			vxSize      = float(vxSize)/zoomFactor
+		else:
+			zoomFactor = 0
+
 		showinfo("ResMap","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
 
 		root.destroy()
@@ -257,10 +271,12 @@ class ResMapApp(object):
 				Mbegin        = Mbegin,
 				Mmax          = Mmax,
 				Mstep         = Mstep,
-				dataMask      = dataMask
+				dataMask      = dataMask,
+				zoomFactor    = zoomFactor,
+				graphicalOutput = self.graphicalOutput.get()
 			 )
 
-		raw_input("\n:: DONE :: Press any key or close window to EXIT.")
+		raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
 
 		return
 

@@ -15,12 +15,15 @@ import os, sys
 from time import time
 
 import numpy as np
+from scipy import ndimage
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
+import matplotlib.pyplot as plt
 
 from ResMap_helpers import *
 from ResMap_blocks import *
 from ResMap_fileIO import *
+from ResMap_sphericalProfile import sphericalAverage
 
 def ResMap_algorithm(**kwargs):
 	'''
@@ -74,14 +77,8 @@ def ResMap_algorithm(**kwargs):
 	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
 
-	debugMode = True
+	debugMode = False
 	preWhiten = False
-
-	if debugMode:
-		import matplotlib.pyplot as plt
-
-	if preWhiten:
-		from ResMap_sphericalprofile import sphericalAverage
 	
 	## Process inputs to function
 	inputFileName = kwargs.get('inputFileName','')
@@ -95,26 +92,36 @@ def ResMap_algorithm(**kwargs):
 	
 	dataMask      = kwargs.get('dataMask', 0)
 
-	if Mbegin == 0.0:
-		Mbegin = round((2.5*vxSize)/0.5)*0.5 # round to the nearest 0.5
+	zoomFactor    = kwargs.get('zoomFactor', 0)
+
+	graphicalOutput     = bool(kwargs.get('graphicalOutput', False))
+
+
+	if Mbegin <= (2.1*vxSize):
+		Mbegin = round((2.1*vxSize)/0.1)*0.1 # round to the nearest 0.1
 	M = Mbegin 
 
 	if Mmax == 0.0:
-		Mmax = round((4*vxSize)/0.5)*0.5 # round to the nearest 0.5
+		Mmax = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
 	(fname,ext)   = os.path.splitext(inputFileName)
 
+	print '\n\n= ResMap has been launched with the following parameters'
+	print '  inputFileName:\t%s' % inputFileName
+	print '  vxSize:\t%.2f' % vxSize
+	print '  pValue:\t%.2f' % pValue
+	print '  MinRes:\t%.2f' % Mbegin
+	print '  MaxRes:\t%.2f'   % Mmax
+	print '  StepSz:\t%.2f'   % Mstep
+	print '  LPFfactor:\t%.2f'   % zoomFactor
+
 	# Extract volume from MRC class
-	print '\n\n= Loading Volume'
+	print '\n\n= Reading Input Volume'
 	tStart = time()
-	data = dataMRC.matrix
-	# if hasattr(data,'ndim') == False: # The volume wasn't passed in for some reason
-	# 	data = mrc_image(inputFileName)
-	# 	data.read(asBool=0)
-	# 	data = data.image_data
-	n = data.shape[0]
-	N = int(n)
-	m, s = divmod(time() - tStart, 60)
+	data   = dataMRC.matrix
+	n      = data.shape[0]
+	N      = int(n)
+	m, s   = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print '\n= Computing Mask Separating Particle from Background'
@@ -152,7 +159,7 @@ def ResMap_algorithm(**kwargs):
 		dataFabs  = np.array(np.abs(dataF), dtype='float32')
 		dataFabs  = dataFabs-np.min(dataFabs)
 		dataFabs  = dataFabs/np.max(dataFabs)
-		dataSpect = sphericalAverage(dataFabs) + 1e-6
+		dataSpect = sphericalAverage(dataFabs) + 1e-20
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
@@ -160,22 +167,22 @@ def ResMap_algorithm(**kwargs):
 		tStart    = time()
 		xpoly = np.array(range(1,dataSpect.size + 1))
 		ypoly = np.log(dataSpect)
-		wpoly = np.array(np.bitwise_and(xpoly>n/4, xpoly<n/2-1), dtype='float32')
-		pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 1, w=wpoly)
+		wpoly = np.array(np.bitwise_and(xpoly>n/6, xpoly<n/2-1), dtype='float32')
+		pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)
 		peval = np.polynomial.polynomial.polyval(xpoly,pcoef)
 
-		R[R>n/2] = n/2
-		R[R<n/4] = n/4
-		Reval    = np.polynomial.polynomial.polyval(R,-1*pcoef)
-		pWfilter = np.exp(Reval)
+		R[R>n/2]  = n/2
+		# R[R<n/12] = n/12
+		Reval     = np.polynomial.polynomial.polyval(R,-0.8*pcoef)
+		pWfilter  = np.exp(Reval)
 
 		dataPW = np.real(np.fft.ifftn(np.fft.ifftshift(pWfilter*dataF)))
 
-		dataPWF     = np.fft.fftshift(np.fft.fftn(dataPW))
+		dataPWF     = pWfilter*dataF
 		dataPWFabs  = np.array(np.abs(dataPWF), dtype='float32')
 		dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
 		dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
-		dataPWSpect = sphericalAverage(dataPWFabs) + 1e-6
+		dataPWSpect = sphericalAverage(dataPWFabs) + 1e-20
 		
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -188,7 +195,7 @@ def ResMap_algorithm(**kwargs):
 
 		if debugMode:
 			f, (ax1, ax2) = plt.subplots(1, 2)
-			ax1.imshow(data[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
+			ax1.imshow(data[int(n/2),:,:],   cmap=plt.cm.gray, interpolation="nearest")
 			ax2.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
 			plt.show()
 
@@ -429,7 +436,7 @@ def ResMap_algorithm(**kwargs):
 		oldSumOfMask = newSumOfMask
 
 		if M >= Mmax:
-			print 'We have reached Mmax = %.2f.' % Mmax
+			print 'We have reached MaxRes = %.2f.' % Mmax
 			moreToProcess = False		
 
 		# Update query resolution
@@ -439,6 +446,15 @@ def ResMap_algorithm(**kwargs):
 	# Set all voxels that were outside of the mask or that failed all resolution tests to 50 A
 	zeroVoxels = (resTOTAL==0)
 	resTOTAL[zeroVoxels] = 50
+	resTOTALma  = np.ma.masked_where(resTOTAL == 50, resTOTAL)	
+
+	old_n = dataMRC.data_size[0]
+	old_coordinates = np.mgrid[	1:n:complex(0,old_n),
+								1:n:complex(0,old_n),
+								1:n:complex(0,old_n) ]		
+
+	if zoomFactor > 0:
+		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates)
 
 	# Write results out as MRC volume
 	dataMRC.matrix = np.array(resTOTAL,dtype='float32')
@@ -451,11 +467,11 @@ def ResMap_algorithm(**kwargs):
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	resTOTALma  = np.ma.masked_where(resTOTAL == 50, resTOTAL)	
 	print "\nMEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
+
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 
-	if debugMode:
+	if graphicalOutput:
 		# Plots
 		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 		ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
@@ -464,15 +480,18 @@ def ResMap_algorithm(**kwargs):
 		ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 	 
 		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
-		ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		cax = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-		ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-		ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-		ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest", alpha=0.25)
-		cbar = f2.colorbar(cax)
+		# ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		im = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		
+		cax = f2.add_axes([0.9, 0.1, 0.03, 0.8])
+		f2.colorbar(im, cax=cax)
+
 		plt.show()
 
 	#try: 
