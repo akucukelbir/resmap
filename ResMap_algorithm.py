@@ -8,6 +8,7 @@ Description of functions:
 Requirements:
     numpy
     scipy
+    matplotlib
     ResMap submodules
 
 '''
@@ -428,8 +429,6 @@ def ResMap_algorithm(**kwargs):
 		mask = np.array(mask - res, dtype='bool')
 		newSumOfMask = np.sum(mask)
 		print "Number of voxels assigned in this iteration = %d" % (oldSumOfMask-newSumOfMask)
-		# print "Number of unassigned voxels from previous iteration = %d" % oldSumOfMask
-		# print "Number of unassigned voxels from current iteration  = %d" % newSumOfMask
 		if oldSumOfMask-newSumOfMask < n and newSumOfMask < (n**2):
 			print 'We have probably covered all voxels of interest.'
 			moreToProcess = False
@@ -459,10 +458,6 @@ def ResMap_algorithm(**kwargs):
 	# Write results out as MRC volume
 	dataMRC.matrix = np.array(resTOTAL,dtype='float32')
 	write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
-	# outputMRC = mrc_image(inputFileName)
-	# outputMRC.read(asBool=0)
-	# outputMRC.change_filename(fname+"_resmap"+ext)
-	# outputMRC.write(np.array(resTOTAL,dtype='float32'))
 
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)

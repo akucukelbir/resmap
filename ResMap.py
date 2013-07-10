@@ -105,7 +105,7 @@ class ResMapApp(object):
 		stepRes_entry = tk.Entry(self.mainframe, width=6, textvariable=self.stepRes)
 		stepRes_entry.grid(column=2, row=7, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="in Angstroms (min: 0.1, default: 1.0, decrease if finer step size is desired)").grid(column=3, row=7, sticky=tk.W)
+		tk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0, decrease if finer step size is desired)").grid(column=3, row=7, sticky=tk.W)
 
 		# ROW 8
 		tk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=8, sticky=tk.E)
@@ -221,8 +221,8 @@ class ResMapApp(object):
 				showerror("Check Inputs", "'stepRes' is not a valid number. Please input a valid step size in Angstroms.")
 				return
 
-			if Mstep < 0.1:
-				showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.1 in Angstroms.")
+			if Mstep < 0.25:
+				showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.25 in Angstroms.")
 				return	
 
 		# Check mask file name and try loading MRC file
@@ -235,20 +235,13 @@ class ResMapApp(object):
 			try:
 				maskVolFileName = self.maskFileName.get()
 				dataMask = MRC_Data(maskVolFileName,'ccp4')
-				# dataMask = mrc_image(maskVolFileName)
-				# dataMask.read(asBool=1)
-				# dataMask = dataMask.image_data
 			except:
 				showerror("Check Inputs", "The MRC mask file could not be read.")
 				return
 
+		# Check if volume has been LPFed
 		dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
-		# displayPowerSpectrum(data.matrix)
 		LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
-
-		# LPFtest = {}
-		# LPFtest['outcome'] = True
-		# LPFtest['factor'] = 0.656
 
 		if LPFtest['outcome']:
 			showinfo("Spectral Tools", "The volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.")
