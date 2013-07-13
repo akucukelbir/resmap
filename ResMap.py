@@ -269,7 +269,15 @@ class ResMapApp(object):
 				graphicalOutput = self.graphicalOutput.get()
 			 )
 
-		raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
+		# raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
+
+		# Python 2.x and 3.x compatible wait for input:
+		try: 
+			input = raw_input
+		except NameError: 
+			pass
+		# Wait for keystroke (for interactive mode)
+		input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
 
 		return
 

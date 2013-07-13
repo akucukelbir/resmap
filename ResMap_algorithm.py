@@ -75,6 +75,7 @@ def ResMap_algorithm(**kwargs):
 	correction. Set preWhiten = True and run at your own peril. 
 	'''
 
+
 	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
 
