@@ -2,3 +2,15 @@
 FEDORA:
 
 	python2.7 pyinstaller.py -F /media/sf_winDownloads/toFEDORA/ResMap.py
+
+WINDOWS:
+
+	run pyinstaller.py -F C:\Users\Alp\Documents\GitHub\pyLocalResolution\ResMap.py
+
+MAC (old): 
+
+	python pyinstaller.py --runtime-hook=PyInstaller/loader/rthooks/pyi_rth_encodings.py -F /Users/alp/GitHub/pyLocalResolution/ResMap.py
+
+MAC (seesm to work now)
+
+	python pyinstaller.py -F /Users/alp/GitHub/pyLocalResolution/ResMap.py

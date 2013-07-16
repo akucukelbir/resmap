@@ -20,35 +20,39 @@ import matplotlib.pyplot as plt
 from scipy import signal
 from ResMap_sphericalProfile import sphericalAverage
 
-def displayPowerSpectrum(data):
+def displayPowerSpectrum(data, data2=None):
 
 	dataPowerSpectrum = calculatePowerSpectrum(data)
 	n = dataPowerSpectrum.size
 	xpoly = np.array(range(1,n + 1))
 
+	if data2 != None:
+		dataPowerSpectrum2 = calculatePowerSpectrum(data2)
+
 	plt.figure(1)
 	p1 = plt.plot(xpoly,dataPowerSpectrum,'b')
+	p2 = plt.plot(xpoly,dataPowerSpectrum2,'r')
 
 	plt.yscale('log')
 	plt.ylabel('Power (normalized log scale)')
 	plt.xlabel('Frequency')
-	# plt.legend( (p1[0], p2[0]), ('Input Volume', 'Bla') )
+	plt.legend( (p1[0], p2[0]), ('Data1', 'Data2') )
 
 	diffTowardsNyquist = np.diff(np.log(dataPowerSpectrum)) #[int(n/2):]
 
-	plt.figure(2)
-	p2 = plt.plot(diffTowardsNyquist,'r')
+	# plt.figure(2)
+	# p2 = plt.plot(diffTowardsNyquist,'r')
 
-	peakInd = signal.find_peaks_cwt(-1*diffTowardsNyquist, np.arange(1,10), min_snr=2)
+	# peakInd = signal.find_peaks_cwt(-1*diffTowardsNyquist, np.arange(1,10), min_snr=2)
 
-	# print peakInd
+	# # print peakInd
 
-	p3 = plt.plot(peakInd, diffTowardsNyquist[peakInd],'ms')
+	# p3 = plt.plot(peakInd, diffTowardsNyquist[peakInd],'ms')
 
-	maxInd = np.max(peakInd)
+	# maxInd = np.max(peakInd)
 
-	print np.mean(diffTowardsNyquist[maxInd+1:])
-	print np.var(diffTowardsNyquist[maxInd+1:])
+	# print np.mean(diffTowardsNyquist[maxInd+1:])
+	# print np.var(diffTowardsNyquist[maxInd+1:])
 
 	plt.show()
 

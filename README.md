@@ -23,11 +23,14 @@ Requirements are:
 * Python (2.7+) [not tested on Python 3.X]
 * NumPy (1.6+)
 * SciPy (0.11+)
+* Matplotlib (1.2+) [for optional graphical output]
 
 We have also provided simulated volumes (under test-data) of a radial symmetric "chirp signal" with two levels of white and 1/f noise.
 
 Version History
 ---------------
+* **(1.0.4)** [10/07/2013] LPF downsampling and graphical output
+* **(1.0.3)** [1/07/2013] Bug fixes
 * **(1.0.2)** [26/06/2013] Step size limits corrected.
 * **(1.0.1)** [30/05/2013] Mask volume bug corrected.
 * **(1.0.0)** [24/05/2013] Initial commit.
