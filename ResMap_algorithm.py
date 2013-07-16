@@ -477,7 +477,8 @@ def ResMap_algorithm(**kwargs):
 	if chimeraLaunch == True:
 		print "\nATTEMPTING TO LAUNCH CHIMERA... "
 		locations = ["",
-					 "/usr/local/bin",
+					 "/Applications/Chimera.app/Contents/MacOS/",
+					 "/usr/local/bin/",
 					 "C:\\Program Files\\Chimera\\bin\\",
 					 "C:\\Program Files\\Chimera 1.6\\bin\\",
 					 "C:\\Program Files\\Chimera 1.7\\bin\\",
