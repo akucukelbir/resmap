@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 from ResMap_helpers import *
 from ResMap_blocks import *
 from ResMap_fileIO import *
+from ResMap_toChimera import *
 from ResMap_sphericalProfile import sphericalAverage
 
 def ResMap_algorithm(**kwargs):
@@ -96,9 +97,9 @@ def ResMap_algorithm(**kwargs):
 
 	zoomFactor    = kwargs.get('zoomFactor', 0)
 
-	graphicalOutput     = bool(kwargs.get('graphicalOutput', False))
-
-
+	graphicalOutput = bool(kwargs.get('graphicalOutput', False))
+	chimeraLaunch   = bool(kwargs.get('chimeraLaunch', False))
+ 
 	if Mbegin <= (2.1*vxSize):
 		Mbegin = round((2.1*vxSize)/0.1)*0.1 # round to the nearest 0.1
 	M = Mbegin 
@@ -106,16 +107,14 @@ def ResMap_algorithm(**kwargs):
 	if Mmax == 0.0:
 		Mmax = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
-	(fname,ext)   = os.path.splitext(inputFileName)
-
 	print '\n\n= ResMap has been launched with the following parameters'
-	print '  inputFileName:\t%s' % inputFileName
-	print '  vxSize:\t%.2f' % vxSize
-	print '  pValue:\t%.2f' % pValue
-	print '  MinRes:\t%.2f' % Mbegin
-	print '  MaxRes:\t%.2f'   % Mmax
-	print '  StepSz:\t%.2f'   % Mstep
-	print '  LPFfactor:\t%.2f'   % zoomFactor
+	print '  inputFileName:\t%s' 	% inputFileName
+	print '  vxSize:\t%.2f' 		% vxSize
+	print '  pValue:\t%.2f'			% pValue
+	print '  MinRes:\t%.2f' 		% Mbegin
+	print '  MaxRes:\t%.2f'   		% Mmax
+	print '  StepSz:\t%.2f'   		% Mstep
+	print '  LPFfactor:\t%.2f'   	% zoomFactor
 
 	# Extract volume from MRC class
 	print '\n\n= Reading Input Volume'
@@ -453,10 +452,14 @@ def ResMap_algorithm(**kwargs):
 								1:n:complex(0,old_n),
 								1:n:complex(0,old_n) ]		
 
+	# Upsample the resulting resolution map if necessary
 	if zoomFactor > 0:
-		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates)
+		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates, mode='nearest')
+		resTOTAL[resTOTAL < Mbegin] = Mbegin
+		resTOTAL[resTOTAL > 50] = 50
 
 	# Write results out as MRC volume
+	(fname,ext)   = os.path.splitext(inputFileName)
 	dataMRC.matrix = np.array(resTOTAL,dtype='float32')
 	write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
 
@@ -467,7 +470,28 @@ def ResMap_algorithm(**kwargs):
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 
-	if graphicalOutput:
+	chimeraScriptFileName = createChimeraScript(inputFileName, Mbegin, Mmax, N, animated=True)
+
+	print "\nCHIMERA SCRIPT WRITTEN to: " + chimeraScriptFileName
+
+	if chimeraLaunch == True:
+		print "\nATTEMPTING TO LAUNCH CHIMERA... "
+		locations = ["",
+					 "/usr/local/bin",
+					 "C:\\Program Files\\Chimera\\bin\\",
+					 "C:\\Program Files\\Chimera 1.6\\bin\\",
+					 "C:\\Program Files\\Chimera 1.7\\bin\\",
+					 "C:\\Program Files\\Chimera 1.8\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera 1.6\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera 1.7\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera 1.8\\bin\\"]
+		try:
+			try_alternatives("chimera", locations, ["--send", chimeraScriptFileName])
+		except OSError:
+			print "\n\n\n!!! ResMap is having trouble finding and/or launching UCSF Chimera. Please manually load the script into Chimera. !!!\n\n\n"
+
+	if graphicalOutput == True:
 		# Plots
 		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 		ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")

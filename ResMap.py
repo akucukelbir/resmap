@@ -22,7 +22,7 @@ class ResMapApp(object):
 	def __init__(self, parent):
 
 		global version
-		version = "1.0.4"
+		version = "1.0.5"
 
 		self.parent = parent
 		self.parent.title("Local Resolution Map (ResMap) v" + version)
@@ -44,6 +44,7 @@ class ResMapApp(object):
 
 		# Create Tk variables
 		self.graphicalOutput = tk.IntVar()
+		self.chimeraLaunch   = tk.IntVar()
 
 		self.volFileName  = tk.StringVar()
 		self.voxelSize    = tk.StringVar()
@@ -116,9 +117,12 @@ class ResMapApp(object):
 		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=8, sticky=tk.W)
 
 		# ROW 9
-		tk.Checkbutton(self.mainframe, text="GRAPHICAL OUTPUT", variable=self.graphicalOutput).grid(column=1, row=9, columnspan=4, sticky=tk.E)
+		tk.Label(self.mainframe, text="Visualization Options:").grid(column=1, row=9, sticky=tk.E)
+		tk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=9, columnspan=4, sticky=tk.W)
 
-		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold", command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=9, sticky=tk.E)
+		# ROW 10
+		tk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=10, columnspan=4, sticky=tk.W)
+		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold", command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=10, sticky=tk.E)
 
 		# Setup grid with padding
 		for child in self.mainframe.winfo_children(): child.grid_configure(padx=5, pady=10)
@@ -266,7 +270,8 @@ class ResMapApp(object):
 				Mstep         = Mstep,
 				dataMask      = dataMask,
 				zoomFactor    = zoomFactor,
-				graphicalOutput = self.graphicalOutput.get()
+				graphicalOutput = self.graphicalOutput.get(),
+				chimeraLaunch   = self.chimeraLaunch.get(),
 			 )
 
 		# raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")

@@ -7,6 +7,8 @@
 *.mrc
 *.map
 
+*.cmd
+
 *.pydevproject
 .project
 .metadata
