@@ -1,13 +1,57 @@
-'''
-ResMap: Tkinter GUI wrapper for ResMap algorithm. (Alp Kucukelbir, 2013)
-             
-Please see ResMap_algorithm.py for details and documentation.
+"""
+ResMap is a Python (NumPy/SciPy) application with a Tkinter GUI. It is a software package for computing the 
+local resolution of 3D density maps studied in structural biology, primarily electron cryo-microscopy (cryo-EM).
 
-'''
+Please find the manual at https://sourceforge.net/projects/resmap/
+
+If you use ResMap in your work, please consider citing us:
+
+A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, In Review, 2013.
+
+This package is released under the Creative Commons Attribution-NonCommercial-NoDerivs 
+CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)
+
+Usage: 
+  ResMap.py [(--nogui INPUT)] [--vxSize=VXSIZE] 
+            [--pVal=PVAL] 
+            [--minRes=MINRES] [--maxRes=MAXRES] [--stepRes=STEPRES]
+            [--maskVol=MASKVOL]
+            [--vis2D] [--launchChimera]
+
+NOTE: INPUT and --vxSize are mandatory inputs to ResMap 
+
+Arguments:
+  INPUT               Input volume in MRC format
+
+Options:
+  --nogui             Run ResMap in command-line mode
+  --vxSize=VXSIZE     Voxel size of input map (A) [default: 0.0]
+  --pVal=PVAL         P-value for likelihood ratio test [default: 0.05]
+  --minRes=MINRES     Minimum resolution (A) [default: 0.0] -> algorithm will start at just above 2.0*vxSize
+  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0] -> algorithm will stop at Nyquist/4
+  --stepRes=STEPRES   Step size (A) [default: 1.0]          -> decrease to as low as 0.25 A if finer step size is desired
+  --maskVol=MASKVOL   Mask volume                           -> ResMap will automatically compute a mask
+  --vis2D             Output 2D visualization
+  --launchChimera     Attempt to launch Chimera after execution
+  -h --help           Show this help message and exit
+  --version           Show version. 
+
+"""
+
+# '''
+# ResMap: Tkinter GUI wrapper for ResMap algorithm. (Alp Kucukelbir, 2013)
+             
+# Please see ResMap_algorithm.py for details and documentation.
+
+# '''
 import Tkinter as tk
 from tkFileDialog import askopenfilename
 from tkMessageBox import showerror
 from tkMessageBox import showinfo
+
+import os
+from docopt import docopt
+from sys import exit
 
 from ResMap_fileIO import *
 from ResMap_spectrumTools import *
@@ -20,9 +64,6 @@ class ResMapApp(object):
 	"""GUI Tkinter class for ResMap"""
 
 	def __init__(self, parent):
-
-		global version
-		version = "1.0.5"
 
 		self.parent = parent
 		self.parent.title("Local Resolution Map (ResMap) v" + version)
@@ -295,10 +336,114 @@ class ResMapApp(object):
 		 "Please send comments, suggestions, and bug reports to alp.kucukelbir@yale.edu or hemant.tagare@yale.edu"))
 
 	def showDocumentation(self):
-		showinfo("ResMap Documentation","Please visit http://sf.net/p/resmap for help.")
+		showinfo("ResMap Documentation","Please go to http://sf.net/p/resmap to download the manual.")
 
-# Create root window 
-root = tk.Tk()
-resmapapp = ResMapApp(root)
-root.mainloop()
+if __name__ == '__main__':
+	
+	global version
+	version = "1.0.6"
 
+	args = docopt(__doc__, version=version)
+
+	if args['--nogui'] == False:
+
+		# Create root window 
+		root = tk.Tk()
+		resmapapp = ResMapApp(root)
+		root.mainloop()
+
+	else:
+
+		# INPUT
+		try:
+			data = MRC_Data(args['INPUT'],'ccp4')
+		except:
+			exit("The input volume (MRC/CCP4 format) could not be read.")
+
+		# inputFileName
+		inputFileName = os.path.normpath(os.path.join(os.getcwd(),args['INPUT']))
+
+		# --vxSize
+		if args['--vxSize'] == '0.0':
+			exit("A voxel size (--vxSize) was not defined.")
+		else:
+			try:
+				vxSize = float(args['--vxSize'])
+			except:
+				exit("The voxel size (--vxSize) is not a valid floating point number.")
+
+			if vxSize <= 0.0:
+				exit("The voxel size (--vxSize) is not a positive number.")
+
+		# --pVal
+		try:
+			pValue = float(args['--pVal'])
+		except:
+			exit("The confidence level (--pVal) is not a valid floating point number.")
+
+		if pValue <= 0.0 or pValue > 0.05:
+			exit("The confidence level (--pVal) is outside of the [0, 0.05] range.")		
+
+		# --minRes
+		try:
+			Mbegin = float(args['--minRes'])
+		except:
+			exit("The minimum resolution (--minRes) is not a valid floating point number.")
+
+		if Mbegin < 0.0:
+			exit("The minimum resolution (--minRes) is not a positive number.")			
+
+		# --maxRes
+		try:
+			Mmax = float(args['--maxRes'])
+		except:
+			exit("The maximum resolution (--maxRes) is not a valid floating point number.")
+
+		if Mmax < 0.0:
+			exit("The maximum resolution (--maxRes) is not a positive number.")						
+
+		# --stepRes
+		try:
+			Mstep = float(args['--stepRes'])
+		except:
+			exit("The step size (--stepRes) is not a valid floating point number.")
+
+		if Mstep < 0.25:
+			exit("The step size (--stepRes) is too small.")			
+
+		# --maskVol
+		if args['--maskVol'] == None:
+			dataMask = 0
+		else:
+			try:
+				dataMask = MRC_Data(args['--maskVol'],'ccp4')
+			except:
+				exit("The mask volume (MRC/CCP4 format) could not be read.")
+
+
+		# Check if volume has been LPFed
+		dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
+		LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
+
+		if LPFtest['outcome']:
+			print "\n\nThe volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.\n\n"
+			zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+			data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
+			vxSize      = float(vxSize)/zoomFactor
+		else:
+			zoomFactor = 0
+
+		# Call ResMap
+		ResMap_algorithm(
+				inputFileName = inputFileName,
+				data          = data,
+				vxSize        = vxSize,
+				pValue        = pValue,
+				Mbegin        = Mbegin,
+				Mmax          = Mmax,
+				Mstep         = Mstep,
+				dataMask      = dataMask,
+				zoomFactor    = zoomFactor,
+				graphicalOutput = args['--vis2D'],
+				chimeraLaunch   = args['--launchChimera']
+			 )

@@ -1,7 +1,6 @@
 '''
 ResMap_algorithm: module containing main local resolution 3D algorithm. (Alp Kucukelbir, 2013)
              
-
 Description of functions:
     ResMap_algorithm: Compute the local resolution map of a density map
 
@@ -86,7 +85,7 @@ def ResMap_algorithm(**kwargs):
 	## Process inputs to function
 	inputFileName = kwargs.get('inputFileName','')
 	dataMRC       = kwargs.get('data', 0)
-	vxSize        = kwargs.get('vxSize', 1)
+	vxSize        = kwargs.get('vxSize', 1.0 )
 	pValue        = kwargs.get('pValue', 0.05)
 	
 	Mbegin        = kwargs.get('Mbegin', 0.0 ) 
