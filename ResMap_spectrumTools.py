@@ -16,50 +16,73 @@ Please see individual functions for attributions.
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 from scipy import signal
 from ResMap_sphericalProfile import sphericalAverage
 
-def displayPowerSpectrum(data, data2=None):
-
-	dataPowerSpectrum = calculatePowerSpectrum(data)
-	n = dataPowerSpectrum.size
-	xpoly = np.array(range(1,n + 1))
-
-	if data2 != None:
-		dataPowerSpectrum2 = calculatePowerSpectrum(data2)
+def displayPowerSpectrum(*args):
 
 	plt.figure(1)
-	p1 = plt.plot(xpoly,dataPowerSpectrum,'b')
-	p2 = plt.plot(xpoly,dataPowerSpectrum2,'r')
+	colors = iter(cm.rainbow(np.linspace(0, 1, len(args))))
+
+	for a in args:
+		dataPowerSpectrum = calculatePowerSpectrum(a.matrix)
+
+		n     = dataPowerSpectrum.size
+		xpoly = np.array(range(1,n + 1))
+
+		p = plt.plot(xpoly, dataPowerSpectrum, color=next(colors), label=a.name)
 
 	plt.yscale('log')
 	plt.ylabel('Power (normalized log scale)')
 	plt.xlabel('Frequency')
-	plt.legend( (p1[0], p2[0]), ('Data1', 'Data2') )
-
-	diffTowardsNyquist = np.diff(np.log(dataPowerSpectrum)) #[int(n/2):]
-
-	# plt.figure(2)
-	# p2 = plt.plot(diffTowardsNyquist,'r')
-
-	# peakInd = signal.find_peaks_cwt(-1*diffTowardsNyquist, np.arange(1,10), min_snr=2)
-
-	# # print peakInd
-
-	# p3 = plt.plot(peakInd, diffTowardsNyquist[peakInd],'ms')
-
-	# maxInd = np.max(peakInd)
-
-	# print np.mean(diffTowardsNyquist[maxInd+1:])
-	# print np.var(diffTowardsNyquist[maxInd+1:])
+	plt.legend(loc=3)
 
 	plt.show()
+
+	# dataPowerSpectrum = calculatePowerSpectrum(data)
+	# n = dataPowerSpectrum.size
+	# xpoly = np.array(range(1,n + 1))
+
+	# if data2 != None:
+	# 	dataPowerSpectrum2 = calculatePowerSpectrum(data2)
+
+	# plt.figure(1)
+	# p1 = plt.plot(xpoly,dataPowerSpectrum,'b')
+	# p2 = plt.plot(xpoly,dataPowerSpectrum2,'r')
+
+	# plt.yscale('log')
+	# plt.ylabel('Power (normalized log scale)')
+	# plt.xlabel('Frequency')
+	# plt.legend( (p1[0], p2[0]), ('Data1', 'Data2') )
+
+	# diffTowardsNyquist = np.diff(np.log(dataPowerSpectrum)) #[int(n/2):]
+
+	# # plt.figure(2)
+	# # p2 = plt.plot(diffTowardsNyquist,'r')
+
+	# # peakInd = signal.find_peaks_cwt(-1*diffTowardsNyquist, np.arange(1,10), min_snr=2)
+
+	# # # print peakInd
+
+	# # p3 = plt.plot(peakInd, diffTowardsNyquist[peakInd],'ms')
+
+	# # maxInd = np.max(peakInd)
+
+	# # print np.mean(diffTowardsNyquist[maxInd+1:])
+	# # print np.var(diffTowardsNyquist[maxInd+1:])
+
+	# plt.show()
 
 def isPowerSpectrumLPF(dataPowerSpectrum):
 
 	# Calculated derivative of log of dataPowerSpectrum
 	diffLogPowerSpectrum = np.diff(np.log(dataPowerSpectrum))
+
+	# plt.figure(2)
+	# p2 = plt.plot(diffLogPowerSpectrum,'r')
+	# plt.show()
 
 	# Find positive peaks in the derivative
 	peakInd = signal.find_peaks_cwt(-1*diffLogPowerSpectrum, np.arange(1,10), min_snr=2)

@@ -25,7 +25,7 @@ def createChimeraScript(inputFileName, Mbegin, Mmax, N, animated=False):
 
 	f = open(newFileName, 'w')
 
-	f.write('# Color a map by local resolution computed by ResMap.\n')
+	f.write('# Color a map by local resolution computed by ResMap\n')
 	f.write('#   Initial version of script courtesy of Tom Goddard, UCSF.\n\n')
 
 	f.write('# Open both volumes and hide the ResMap volume.\n')
@@ -79,19 +79,19 @@ def createChimeraScript(inputFileName, Mbegin, Mmax, N, animated=False):
 	f.write('# Cycle through planes from N/2 to 4N/5 up to N/5 and back to N/2.\n')
 	if animated == False:
 		f.write('# ')
-	f.write('volume #0 planes z,' + str(N/2) + ',' + str(4*N/5) + ',0.25\n');
+	f.write('volume #0 planes z,' + str(N/2) + ',' + str(4*N/5) + ',0.1\n');
 	if animated == False:
 		f.write('# ')
-	f.write('wait ' + str(4*int(4*N/5 - N/2)) + '\n');
+	f.write('wait ' + str(10*int(4*N/5 - N/2)) + '\n');
 	if animated == False:
 		f.write('# ')
-	f.write('volume #0 planes z,' + str(4*N/5) + ',' + str(N/5) + ',0.25\n');
+	f.write('volume #0 planes z,' + str(4*N/5) + ',' + str(N/5) + ',0.1\n');
 	if animated == False:
 		f.write('# ')
-	f.write('wait ' + str(4*int(4*N/5 - N/5)) + '\n');	
+	f.write('wait ' + str(10*int(4*N/5 - N/5)) + '\n');	
 	if animated == False:
 		f.write('# ')
-	f.write('volume #0 planes z,' + str(N/5) + ',' + str(N/2) + ',0.25\n');	
+	f.write('volume #0 planes z,' + str(N/5) + ',' + str(N/2) + ',0.1\n');	
 
 	f.close()
 

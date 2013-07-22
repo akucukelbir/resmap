@@ -144,7 +144,7 @@ def ResMap_algorithm(**kwargs):
 	else:
 		dataMask = np.array(dataMask.matrix, dtype='bool')
 
-	mask         = np.bitwise_and(dataMask, R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
+	mask         = np.bitwise_and(dataMask, R < n/2 - 1)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
 	del dataMask	
 
@@ -468,8 +468,8 @@ def ResMap_algorithm(**kwargs):
 	print "\nMEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
-
-	chimeraScriptFileName = createChimeraScript(inputFileName, Mbegin, Mmax, N, animated=True)
+	
+	chimeraScriptFileName = createChimeraScript(inputFileName, Mbegin, Mmax, int(resTOTAL.shape[0]), animated=True)
 
 	print "\nCHIMERA SCRIPT WRITTEN to: " + chimeraScriptFileName
 
