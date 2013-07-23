@@ -54,7 +54,6 @@ from docopt import docopt
 from sys import exit
 
 from ResMap_fileIO import *
-from ResMap_spectrumTools import *
 from ResMap_algorithm import ResMap_algorithm
 
 from scipy import ndimage
@@ -163,7 +162,9 @@ class ResMapApp(object):
 
 		# ROW 10
 		tk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=10, columnspan=4, sticky=tk.W)
-		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold", command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=10, sticky=tk.E)
+		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold",command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=10, sticky=tk.E)
+
+		self.parent.bind("<Return>",self.checkInputsAndRun)
 
 		# Setup grid with padding
 		for child in self.mainframe.winfo_children(): child.grid_configure(padx=5, pady=10)
@@ -181,7 +182,7 @@ class ResMapApp(object):
 				showerror("Open Source File", "Failed to read file\n'%s'" % fname)
 			return 
 
-	def checkInputsAndRun(self):
+	def checkInputsAndRun(self,*args):
 
 		# Check volume file name and try loading MRC file
 		if self.volFileName.get() == "":
@@ -284,17 +285,17 @@ class ResMapApp(object):
 				showerror("Check Inputs", "The MRC mask file could not be read.")
 				return
 
-		# Check if volume has been LPFed
-		dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
-		LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
+		# # Check if volume has been LPFed
+		# dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
+		# LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
 
-		if LPFtest['outcome']:
-			showinfo("Spectral Tools", "The volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.")
-			zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
-			data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
-			vxSize      = float(vxSize)/zoomFactor
-		else:
-			zoomFactor = 0
+		# if LPFtest['outcome']:
+		# 	showinfo("Spectral Tools", "The volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.")
+		# 	zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+		# 	data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
+		# 	vxSize      = float(vxSize)/zoomFactor
+		# else:
+		# 	zoomFactor = 0
 
 		showinfo("ResMap","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
 
@@ -310,7 +311,7 @@ class ResMapApp(object):
 				Mmax          = Mmax,
 				Mstep         = Mstep,
 				dataMask      = dataMask,
-				zoomFactor    = zoomFactor,
+				# zoomFactor    = zoomFactor,
 				graphicalOutput = self.graphicalOutput.get(),
 				chimeraLaunch   = self.chimeraLaunch.get(),
 			 )
@@ -421,17 +422,17 @@ if __name__ == '__main__':
 				exit("The mask volume (MRC/CCP4 format) could not be read.")
 
 
-		# Check if volume has been LPFed
-		dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
-		LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
+		# # Check if volume has been LPFed
+		# dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
+		# LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
 
-		if LPFtest['outcome']:
-			print "\n\nThe volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.\n\n"
-			zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
-			data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
-			vxSize      = float(vxSize)/zoomFactor
-		else:
-			zoomFactor = 0
+		# if LPFtest['outcome']:
+		# 	print "\n\nThe volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.\n\n"
+		# 	zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+		# 	data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
+		# 	vxSize      = float(vxSize)/zoomFactor
+		# else:
+		# 	zoomFactor = 0
 
 		# Call ResMap
 		ResMap_algorithm(
@@ -443,7 +444,7 @@ if __name__ == '__main__':
 				Mmax          = Mmax,
 				Mstep         = Mstep,
 				dataMask      = dataMask,
-				zoomFactor    = zoomFactor,
+				# zoomFactor    = zoomFactor,
 				graphicalOutput = args['--vis2D'],
 				chimeraLaunch   = args['--launchChimera']
 			 )

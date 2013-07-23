@@ -24,6 +24,7 @@ from ResMap_helpers import *
 from ResMap_blocks import *
 from ResMap_fileIO import *
 from ResMap_toChimera import *
+from ResMap_spectrumTools import *
 from ResMap_sphericalProfile import sphericalAverage
 
 def ResMap_algorithm(**kwargs):
@@ -79,50 +80,74 @@ def ResMap_algorithm(**kwargs):
 	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
 
+	epsilon = 1e-20
+
 	debugMode = False
-	preWhiten = False
+	preWhiten = True
 	
 	## Process inputs to function
-	inputFileName = kwargs.get('inputFileName','')
-	dataMRC       = kwargs.get('data', 0)
-	vxSize        = kwargs.get('vxSize', 1.0 )
-	pValue        = kwargs.get('pValue', 0.05)
-	
-	Mbegin        = kwargs.get('Mbegin', 0.0 ) 
-	Mmax          = kwargs.get('Mmax',   0.0 )
-	Mstep         = kwargs.get('Mstep',  1.0 ) 
-	
-	dataMask      = kwargs.get('dataMask', 0)
-
-	zoomFactor    = kwargs.get('zoomFactor', 0)
-
+	print '\n\n= Reading Input Parameters'
+	tStart = time()
+	inputFileName   = kwargs.get('inputFileName','')
+	dataMRC         = kwargs.get('data', 0)
+	vxSize          = kwargs.get('vxSize', 1.0 )
+	pValue          = kwargs.get('pValue', 0.05)
+	Mbegin          = kwargs.get('Mbegin', 0.0 ) 
+	Mmax            = kwargs.get('Mmax',   0.0 )
+	Mstep           = kwargs.get('Mstep',  1.0 ) 
+	dataMask        = kwargs.get('dataMask', 0)
 	graphicalOutput = bool(kwargs.get('graphicalOutput', False))
 	chimeraLaunch   = bool(kwargs.get('chimeraLaunch', False))
  
-	if Mbegin <= (2.1*vxSize):
-		Mbegin = round((2.1*vxSize)/0.1)*0.1 # round to the nearest 0.1
+	# Extract volume from MRC class
+	data   = dataMRC.matrix
+	data   = data-np.mean(data)
+
+	m, s   = divmod(time() - tStart, 60)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	print '\n\n= Testing Whether Input Volume has been Low-pass Filtered\n'
+	tStart = time()
+
+	dataPowerSpectrum = calculatePowerSpectrum(data)	
+	LPFtest           = isPowerSpectrumLPF(dataPowerSpectrum)
+
+	if LPFtest['outcome']:
+		print ( "=====================================================================\n"
+				"    The volume appears to be low-pass filtered.\n"
+				"    This is not ideal, but ResMap will attempt to run.\n"
+				"    The input volume will be down- and up-sampled within ResMap.\n"
+				"=====================================================================\n")
+		zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+		data = ndimage.interpolation.zoom(data, zoomFactor, mode='reflect')	# cubic spline downsampling
+		vxSize      = float(vxSize)/zoomFactor
+	else:
+		print "  The volume does not appear to be low-pass filtered. Great!\n"
+		zoomFactor = 0
+
+	# Calculate min res
+	if Mbegin <= (2.2*vxSize):
+		Mbegin = round((2.2*vxSize)/0.1)*0.1 # round to the nearest 0.1
 	M = Mbegin 
 
+	# Calculate max res
 	if Mmax == 0.0:
 		Mmax = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
-	print '\n\n= ResMap has been launched with the following parameters'
-	print '  inputFileName:\t%s' 	% inputFileName
+	n = data.shape[0]
+	N = int(n)		
+
+	m, s   = divmod(time() - tStart, 60)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	print '\n\n= ResMap will now run with the following parameters'
+	print '  inputMap:\t%s' 	% inputFileName
 	print '  vxSize:\t%.2f' 		% vxSize
 	print '  pValue:\t%.2f'			% pValue
 	print '  MinRes:\t%.2f' 		% Mbegin
 	print '  MaxRes:\t%.2f'   		% Mmax
 	print '  StepSz:\t%.2f'   		% Mstep
 	print '  LPFfactor:\t%.2f'   	% zoomFactor
-
-	# Extract volume from MRC class
-	print '\n\n= Reading Input Volume'
-	tStart = time()
-	data   = dataMRC.matrix
-	n      = data.shape[0]
-	N      = int(n)
-	m, s   = divmod(time() - tStart, 60)
-	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print '\n= Computing Mask Separating Particle from Background'
 	tStart    = time()
@@ -133,7 +158,7 @@ def ResMap_algorithm(**kwargs):
 						-n/2:n/2:complex(0,n),
 						-n/2:n/2:complex(0,n) ]
 	R       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
-	Rinside = R < n/2
+	Rinside = R < n/2 - 1
 	del (x,y,z)	
 
 	# Check to see if mask volume was already provided
@@ -144,60 +169,143 @@ def ResMap_algorithm(**kwargs):
 	else:
 		dataMask = np.array(dataMask.matrix, dtype='bool')
 
-	mask         = np.bitwise_and(dataMask, R < n/2 - 1)	# backoff 9 voxels from edge (make adaptive later)
+	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
-	del dataMask	
 
 	m, s      = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	# BETA: Amplitude Correction
-	if preWhiten:
-		print '\n= Calculating Spherically Averaged Power Spectrum of Volume'
+	# BETA: Pre-whitening
+	if preWhiten==True and vxSize < 5:
+
+		print '\n= Computing Soft Mask Separating Particle from Background'
+		tStart      = time()
+		boxElement  = np.ones([5, 5, 5])
+		dilatedMask = ndimage.morphology.binary_dilation(dataMask, structure=boxElement, iterations=3)
+
+		dilatedMask = np.logical_and(dilatedMask, Rinside)
+
+		softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n*0.02))
+		dataBG      = np.multiply(data,softBGmask)
+		m, s        = divmod(time() - tStart, 60)
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)		
+
+		print '\n= Calculating Spherically Averaged Power Spectra'
 		tStart    = time()
+
 		dataF     = np.fft.fftshift(np.fft.fftn(data))
 		dataFabs  = np.array(np.abs(dataF), dtype='float32')
 		dataFabs  = dataFabs-np.min(dataFabs)
 		dataFabs  = dataFabs/np.max(dataFabs)
-		dataSpect = sphericalAverage(dataFabs) + 1e-20
+		dataSpect = sphericalAverage(dataFabs) + epsilon
+
+		dataBGF     = np.fft.fftshift(np.fft.fftn(dataBG))
+		dataBGFabs  = np.array(np.abs(dataBGF), dtype='float32')
+		dataBGFabs  = dataBGFabs-np.min(dataBGFabs)
+		dataBGFabs  = dataBGFabs/np.max(dataBGFabs)
+		dataBGSpect = sphericalAverage(dataBGFabs) + epsilon
+
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 		print '\n= Pre-whitening Volume'
 		tStart    = time()
+
+		# Create the x and y variables for the polynomial regression
 		xpoly = np.array(range(1,dataSpect.size + 1))
-		ypoly = np.log(dataSpect)
-		wpoly = np.array(np.bitwise_and(xpoly>n/6, xpoly<n/2-1), dtype='float32')
-		pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)
-		peval = np.polynomial.polynomial.polyval(xpoly,pcoef)
+		ypoly = np.log(dataBGSpect)
 
-		R[R>n/2]  = n/2
-		# R[R<n/12] = n/12
-		Reval     = np.polynomial.polynomial.polyval(R,-0.8*pcoef)
+		# Find the index at which the spectrum hits certain frequencies
+		Fs     = 1/vxSize
+		Findex = 1/( Fs/2 * np.linspace(epsilon, 1, xpoly.size) )
+		ind40A = np.argmin((Findex-40)**2) 
+		ind20A = np.argmin((Findex-20)**2) 
+		ind15A = np.argmin((Findex-15)**2) 
+		ind10A = np.argmin((Findex-10)**2) 
+		indNyq = n/2-1
+
+		# Create weights for polynomial regression	
+		w20to10 = np.array(np.bitwise_and(xpoly>ind20A, xpoly<ind10A), dtype='float32')
+		w10toNy = np.array(np.bitwise_and(xpoly>ind10A, xpoly<indNyq), dtype='float32')
+	
+		# If the spectrum near Nyquist is higher than at 10A, probably B-factor corrected
+		if ypoly[-3] > ypoly[ind10A]:
+			print ("  It appears that this volume has had some B-factor correction applied.\n"
+				   "  ResMap will try to pre-whiten by ramping down frequencies beyond approx 10A.")
+
+			wpoly = 0.1*w20to10 + 1.0*w10toNy
+
+			pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 1, w=wpoly)
+			peval = np.polynomial.polynomial.polyval(xpoly, pcoef)
+
+			R[R<ind15A] = ind15A
+			R[R>indNyq] = indNyq
+		else:
+			print ("  It appears that this volume is raw (straight out of the reconstruction algorithm).\n"
+				   "  ResMap will try to pre-whiten by ramping up frequencies beyond approx 20A.")			
+
+			wpoly = 0.6*w20to10 + 1.0*w10toNy
+
+			pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 1, w=wpoly)
+			peval = np.polynomial.polynomial.polyval(xpoly, pcoef)
+
+			R[R<ind40A] = ind40A
+			R[R>indNyq] = indNyq
+
+		# Evaluate the fitted polynomial (the inverse pre-whitening filter)
+		Reval     = np.polynomial.polynomial.polyval(R,-1.0*pcoef)
 		pWfilter  = np.exp(Reval)
-
-		dataPW = np.real(np.fft.ifftn(np.fft.ifftshift(pWfilter*dataF)))
 
 		dataPWF     = pWfilter*dataF
 		dataPWFabs  = np.array(np.abs(dataPWF), dtype='float32')
 		dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
 		dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
-		dataPWSpect = sphericalAverage(dataPWFabs) + 1e-20
-		
+		dataPWSpect = sphericalAverage(dataPWFabs) + epsilon
+
+		dataPW = np.real(np.fft.ifftn(np.fft.ifftshift(dataPWF)))
+
+		dataPWBG      = np.multiply(dataPW,softBGmask)
+		dataPWBGF     = np.fft.fftshift(np.fft.fftn(dataPWBG))
+		dataPWBGFabs  = np.array(np.abs(dataPWBGF), dtype='float32')
+		dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)
+		dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
+		dataPWBGSpect = sphericalAverage(dataPWBGFabs) + epsilon
+
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-		plt.plot(xpoly,dataSpect**2,'b', 
-				 xpoly,np.exp(peval)**2,'r',
-				 xpoly,dataPWSpect**2,'m')
-		plt.yscale('log')
-		plt.show()
+		# Figure
+		plt.figure(figsize=(13, 9))
+		ax1 = plt.subplot2grid((2,3), (0,0), colspan=2)
+		ax2 = plt.subplot2grid((2,3), (1, 0))
+		ax3 = plt.subplot2grid((2,3), (1, 1))
 
-		if debugMode:
-			f, (ax1, ax2) = plt.subplots(1, 2)
-			ax1.imshow(data[int(n/2),:,:],   cmap=plt.cm.gray, interpolation="nearest")
-			ax2.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
-			plt.show()
+		# Spectra
+		ax1.plot(xpoly, dataSpect**2,		lw=2, color='b', label='Input Map')
+		ax1.plot(xpoly, dataBGSpect**2,		lw=2, color='c', label='Background of Input Map')
+		ax1.plot(xpoly, np.exp(peval)**2,	lw=2, color='r', linestyle='dashed', label='Fitted Line')
+		ax1.plot(xpoly, dataPWSpect**2,		lw=2, color='m', label='Pre-Whitened Map')
+		ax1.plot(xpoly, dataPWBGSpect**2,	lw=2, color='g', label='Background of Pre-Whitened Map')
+
+		tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) ) 
+		ax1.set_xticks( np.linspace(1,xpoly.size,tmp.size) )
+		ax1.set_xticklabels( ["%.1f" % member for member in tmp]  )
+		del tmp 
+
+		ax1.set_ylabel('Power Spectrum (|f|^2)')
+		ax1.set_xlabel('Angstrom')
+		ax1.set_yscale('log')
+		ax1.grid(linestyle='dotted')
+		ax1.set_title('PLEASE CHECK THAT THINGS LOOK OK\nTHE GREEN LINE SHOULD BE FAIRLY FLAT TOWARDS NYQUIST')
+		ax1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
+
+		# Slices through volumes
+		ax2.imshow(data[int(n/2),:,:],   cmap=plt.cm.gray, interpolation="nearest")
+		ax3.imshow(dataPW[int(n/2),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax2.set_title('Middle Slice of Input Map')
+		ax3.set_title('Middle Slice of Pre-Whitened Map')
+
+		plt.show()
 
 		data = dataPW
 
@@ -349,7 +457,7 @@ def ResMap_algorithm(**kwargs):
 			i, j, k       = indexVecView[:,idx]
 			dataCube      = dataView[i,j,k,...].flatten()
 			WRSSdiff[idx] = np.vdot(dataCube, np.dot(LAMBDAdiff, dataCube))
-			if idx % progressBarIdx == 0:
+			if progressBarIdx > 0 and idx % progressBarIdx == 0:
 				update_progress(idx/float(maxIdx))
 				sys.stdout.flush()
 		LRSvec = WRSSdiff/(variance+1e-10)
@@ -427,7 +535,7 @@ def ResMap_algorithm(**kwargs):
 		# Update the mask to voxels that failed this level's likelihood test
 		mask = np.array(mask - res, dtype='bool')
 		newSumOfMask = np.sum(mask)
-		print "Number of voxels assigned in this iteration = %d" % (oldSumOfMask-newSumOfMask)
+		print "\nNumber of voxels assigned in this iteration = %d" % (oldSumOfMask-newSumOfMask)
 		if oldSumOfMask-newSumOfMask < n and newSumOfMask < (n**2):
 			print 'We have probably covered all voxels of interest.'
 			moreToProcess = False
@@ -453,7 +561,7 @@ def ResMap_algorithm(**kwargs):
 
 	# Upsample the resulting resolution map if necessary
 	if zoomFactor > 0:
-		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates, mode='nearest')
+		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates, order=1, mode='nearest')
 		resTOTAL[resTOTAL < Mbegin] = Mbegin
 		resTOTAL[resTOTAL > 50] = 50
 
