@@ -49,7 +49,7 @@ def preWhitenVolume(R, Rorig, **kwargs):
 
 	# Find the points of interest
 	indexElbow    = np.argmin((Findex-elbowAngstrom)**2)
-	indexStart    = np.argmin((Findex-(1.2*elbowAngstrom))**2)
+	indexStart    = np.argmin((Findex-(1.05*elbowAngstrom))**2)
 	indexNyquist  = xpoly[-1]
 
 	# Create the weighting function (binary, in this case) to do a weighted fit
