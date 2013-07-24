@@ -15,6 +15,7 @@ Usage:
   ResMap.py [(--nogui INPUT)] [--vxSize=VXSIZE] 
             [--pVal=PVAL] 
             [--minRes=MINRES] [--maxRes=MAXRES] [--stepRes=STEPRES]
+            [--variance=VAR]
             [--maskVol=MASKVOL]
             [--vis2D] [--launchChimera]
 
@@ -27,10 +28,11 @@ Options:
   --nogui             Run ResMap in command-line mode
   --vxSize=VXSIZE     Voxel size of input map (A) [default: 0.0]
   --pVal=PVAL         P-value for likelihood ratio test [default: 0.05]
-  --minRes=MINRES     Minimum resolution (A) [default: 0.0] -> algorithm will start at just above 2*vxSize
-  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0] -> algorithm will stop at around 4*vxSize
-  --stepRes=STEPRES   Step size (A) [default: 1.0]          -> min 0.25A 
-  --maskVol=MASKVOL   Mask volume                           -> ResMap will automatically compute a mask
+  --minRes=MINRES     Minimum resolution (A) [default: 0.0]      -> algorithm will start at just above 2*vxSize
+  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0]      -> algorithm will stop at around 4*vxSize
+  --stepRes=STEPRES   Step size (A) [default: 1.0]               -> min 0.25A 
+  --variance=VAR      Noise Variance of input map [default: 0.0] -> [NOT RECOMMENDED]
+  --maskVol=MASKVOL   Mask volume                                -> ResMap will automatically compute a mask
   --vis2D             Output 2D visualization
   --launchChimera     Attempt to launch Chimera after execution
   -h --help           Show this help message and exit
@@ -86,6 +88,7 @@ class ResMapApp(object):
 		self.minRes       = tk.StringVar(value="0.0")
 		self.maxRes       = tk.StringVar(value="0.0")
 		self.stepRes      = tk.StringVar(value="1.0")
+		self.variance     = tk.StringVar(value="0.0")
 		self.maskFileName = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
 
 		# ROW 0
@@ -124,7 +127,7 @@ class ResMapApp(object):
 		minRes_entry = tk.Entry(self.mainframe, width=5, textvariable=self.minRes)
 		minRes_entry.grid(column=2, row=5, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="in Angstroms (default: 0; algorithm will start at just above 2*voxelSize)").grid(column=3, row=5, sticky=tk.W)
+		tk.Label(self.mainframe, text="in Angstroms (default: algorithm will start at just above 2*voxelSize)").grid(column=3, row=5, sticky=tk.W)
 
 		# ROW 6
 		tk.Label(self.mainframe, text="Max Resolution:").grid(column=1, row=6, sticky=tk.E)
@@ -132,7 +135,7 @@ class ResMapApp(object):
 		maxRes_entry = tk.Entry(self.mainframe, width=5, textvariable=self.maxRes)
 		maxRes_entry.grid(column=2, row=6, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="in Angstroms (default: 0, algorithm will stop at around 4*voxelSize)").grid(column=3, row=6, sticky=tk.W)
+		tk.Label(self.mainframe, text="in Angstroms (default: algorithm will stop at around 4*voxelSize)").grid(column=3, row=6, sticky=tk.W)
 
 		# ROW 7
 		tk.Label(self.mainframe, text="Step Size:").grid(column=1, row=7, sticky=tk.E)
@@ -143,20 +146,28 @@ class ResMapApp(object):
 		tk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=7, sticky=tk.W)
 
 		# ROW 8
-		tk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=8, sticky=tk.E)
+		tk.Label(self.mainframe, text="Noise Variance:").grid(column=1, row=8, sticky=tk.E)
 
-		maskFileName_entry = tk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, fg="gray")
-		maskFileName_entry.grid(column=2, columnspan=10, row=8, sticky=(tk.W, tk.E))
+		variance_entry = tk.Entry(self.mainframe, width=6, textvariable=self.variance)
+		variance_entry.grid(column=2, row=8, sticky=tk.W)
 
-		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=8, sticky=tk.W)
+		tk.Label(self.mainframe, text="noise variance of input map [NOT RECOMMENDED: ResMap will assume map has already been pre-whitened]\n(default: ResMap will pre-whiten and automatically compute from the background)").grid(column=3, row=8, sticky=tk.W)		
 
 		# ROW 9
-		tk.Label(self.mainframe, text="Visualization Options:", font = "Helvetica 10 bold").grid(column=1, row=9, sticky=tk.E)
-		tk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=9, columnspan=4, sticky=tk.W)
+		tk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
+
+		maskFileName_entry = tk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, fg="gray")
+		maskFileName_entry.grid(column=2, columnspan=10, row=9, sticky=(tk.W, tk.E))
+
+		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
 
 		# ROW 10
-		tk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=10, columnspan=4, sticky=tk.W)
-		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold",command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=10, sticky=tk.E)
+		tk.Label(self.mainframe, text="Visualization Options:", font = "Helvetica 10 bold").grid(column=1, row=10, sticky=tk.E)
+		tk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=4, sticky=tk.W)
+
+		# ROW 11
+		tk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=4, sticky=tk.W)
+		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold",command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=11, sticky=tk.E)
 
 		self.parent.bind("<Return>",self.checkInputsAndRun)
 
@@ -265,6 +276,21 @@ class ResMapApp(object):
 				showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.25 in Angstroms.")
 				return	
 
+		# Check noise variance
+		if self.variance.get() == "":
+			showerror("Check Inputs", "'variance' is not set. Please input a valid noise variance value.")
+			return
+		else:
+			try:
+				variance = float(self.variance.get())
+			except ValueError:
+				showerror("Check Inputs", "'variance' is not a valid number. Please input a valid nois variance value.")
+				return
+
+			if variance < 0.0:
+				showerror("Check Inputs", "'variance' is too small. Please input a noise variance greater than 0.0.")
+				return					
+
 		# Check mask file name and try loading MRC file
 		if self.maskFileName.get() == "":
 			showerror("Check Inputs", "'maskFileName' is not set. Please type (None;) without the parantheses.")
@@ -285,14 +311,15 @@ class ResMapApp(object):
 
 		# Call ResMap
 		ResMap_algorithm(
-				inputFileName = inputFileName,
-				data          = data,
-				vxSize        = vxSize,
-				pValue        = pValue,
-				Mbegin        = Mbegin,
-				Mmax          = Mmax,
-				Mstep         = Mstep,
-				dataMask      = dataMask,
+				inputFileName   = inputFileName,
+				data            = data,
+				vxSize          = vxSize,
+				pValue          = pValue,
+				Mbegin          = Mbegin,
+				Mmax            = Mmax,
+				Mstep           = Mstep,
+				dataMask        = dataMask,
+				variance        = variance,
 				graphicalOutput = self.graphicalOutput.get(),
 				chimeraLaunch   = self.chimeraLaunch.get(),
 			 )
@@ -385,6 +412,15 @@ if __name__ == '__main__':
 		if Mstep < 0.25:
 			exit("The step size (--stepRes) is too small.")			
 
+		# --variance
+		try:
+			variance = float(args['--variance'])
+		except:
+			exit("The noise variance (--variance) is not a valid floating point number.")
+
+		if variance < 0.0:
+			exit("The noise variance (--variance) is a negative number.")		
+
 		# --maskVol
 		if args['--maskVol'] == None:
 			dataMask = 0
@@ -397,14 +433,15 @@ if __name__ == '__main__':
 
 		# Call ResMap
 		ResMap_algorithm(
-				inputFileName = inputFileName,
-				data          = data,
-				vxSize        = vxSize,
-				pValue        = pValue,
-				Mbegin        = Mbegin,
-				Mmax          = Mmax,
-				Mstep         = Mstep,
-				dataMask      = dataMask,
+				inputFileName   = inputFileName,
+				data            = data,
+				vxSize          = vxSize,
+				pValue          = pValue,
+				Mbegin          = Mbegin,
+				Mmax            = Mmax,
+				Mstep           = Mstep,
+				dataMask        = dataMask,
+				variance        = variance,
 				graphicalOutput = args['--vis2D'],
 				chimeraLaunch   = args['--launchChimera']
 			 )

@@ -84,7 +84,6 @@ def ResMap_algorithm(**kwargs):
 	epsilon = 1e-20
 
 	debugMode = False
-	preWhiten = True
 	
 	## Process inputs to function
 	print '\n\n= Reading Input Parameters'
@@ -97,6 +96,7 @@ def ResMap_algorithm(**kwargs):
 	Mmax            = kwargs.get('Mmax',   0.0 )
 	Mstep           = kwargs.get('Mstep',  1.0 ) 
 	dataMask        = kwargs.get('dataMask', 0)
+	variance        = kwargs.get('variance', 0.0)
 	graphicalOutput = bool(kwargs.get('graphicalOutput', False))
 	chimeraLaunch   = bool(kwargs.get('chimeraLaunch', False))
  
@@ -107,18 +107,22 @@ def ResMap_algorithm(**kwargs):
 	m, s   = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	print '\n\n= Testing Whether Input Volume has been Low-pass Filtered\n'
+	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
 	tStart = time()
 
 	dataPowerSpectrum = calculatePowerSpectrum(data)	
 	LPFtest           = isPowerSpectrumLPF(dataPowerSpectrum)
 
 	if LPFtest['outcome']:
-		print ( "=====================================================================\n"
-				"    The volume appears to be low-pass filtered.\n"
-				"    This is not ideal, but ResMap will attempt to run.\n"
-				"    The input volume will be down- and up-sampled within ResMap.\n"
-				"=====================================================================\n")
+		print ( "=======================================================================\n"
+				"|                                                                     |\n"
+				"|            The volume appears to be low-pass filtered.              |\n"
+				"|                                                                     |\n"				
+				"|         This is not ideal, but ResMap will attempt to run.          |\n"
+				"|                                                                     |\n"				
+				"|        The input volume will be down-sampled within ResMap.         |\n"
+				"|                                                                     |\n"				
+				"======================================================================\n")
 		zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
 		data = ndimage.interpolation.zoom(data, zoomFactor, mode='reflect')	# cubic spline down-sampling
 		vxSize      = float(vxSize)/zoomFactor
@@ -148,6 +152,7 @@ def ResMap_algorithm(**kwargs):
 	print '  MinRes:\t%.2f' 		% Mbegin
 	print '  MaxRes:\t%.2f'   		% Mmax
 	print '  StepSz:\t%.2f'   		% Mstep
+	print '  Variance:\t%.4f'   	% variance
 	print '  LPFfactor:\t%.2f'   	% zoomFactor
 
 	print '\n= Computing Mask Separating Particle from Background'
@@ -178,7 +183,8 @@ def ResMap_algorithm(**kwargs):
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# BETA: Pre-whitening
-	if preWhiten==True:
+	if variance == 0.0:
+		estimateVarianceFromBackground = True
 
 		print '\n= Computing Soft Mask Separating Particle from Background'
 		tStart      = time()
@@ -210,7 +216,6 @@ def ResMap_algorithm(**kwargs):
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-
 		# PREWHITENING 
 		oldElbowAngstrom = 0
 		newElbowAngstrom = max(10,2.1*vxSize)
@@ -240,8 +245,38 @@ def ResMap_algorithm(**kwargs):
 								dataSlice     = data[int(n/2),:,:], 
 								dataPWSlice   = dataPW[int(n/2),:,:])
 
-
 		data = dataPW
+	else:
+		estimateVarianceFromBackground = False
+		print ( "=======================================================================\n"
+				"|                                                                     |\n"
+				"|    You have chosen to run ResMap with your own variance estimate.   |\n"
+				"|                                                                     |\n"
+				"|                                                                     |\n"				
+				"|                  This is strongly NOT recommended.                  |\n"
+				"|                                                                     |\n"
+				"|                                                                     |\n"								
+				"|                 The results may not make any sense                  |\n"
+				"|                 and the algorithm may simply fail.                  |\n"
+				"|                                                                     |\n"	
+				"|                                                                     |\n"	
+				"|       Please consider using ResMap's own estimation option.         |\n"	
+				"|                                                                     |\n"																	
+				"=======================================================================\n")
+
+		crudeEstimate = np.var(data[np.logical_and(Rinside,np.logical_not(mask))])
+
+		print "Crude Estimate of Noise Variance = %.6f" % crudeEstimate
+
+		if abs( int(np.log10(variance)) - int(np.log10(crudeEstimate)) ) > 1:
+			print "\n"
+			print ( "=======================================================================\n"
+					"|                                                                     |\n"
+					"|     It seems like your variance estimate is more than 1 order       |\n"
+					"|           of magnitude off... beware of the results.                |\n"		
+					"|                                                                     |\n"																	
+					"=======================================================================\n")
+
 
 	resTOTAL = np.zeros_like(data)
 
@@ -320,49 +355,50 @@ def ResMap_algorithm(**kwargs):
 		LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32')
 
 		## Estimate variance
-		print 'Estimating variance from non-overlapping blocks in background...',
-		tStart = time()
+		if estimateVarianceFromBackground==True:
+			print 'Estimating variance from non-overlapping blocks in background...',
+			tStart = time()
 
-		if M == Mbegin:
-			# Calculate mask of background voxels within Rinside sphere but outside of particle mask
-			maskBG = Rinside-mask
+			if M == Mbegin:
+				# Calculate mask of background voxels within Rinside sphere but outside of particle mask
+				maskBG = Rinside-mask
 
-		# Use numpy stride tricks to compute "view" into NON-overlapping
-		# blocks of 2*r+1. Does not allocate any extra memory
-		maskBGview = rolling_window(maskBG, 								
-						window=(winSize, winSize, winSize), 
-						asteps=(winSize, winSize, winSize))
+			# Use numpy stride tricks to compute "view" into NON-overlapping
+			# blocks of 2*r+1. Does not allocate any extra memory
+			maskBGview = rolling_window(maskBG, 								
+							window=(winSize, winSize, winSize), 
+							asteps=(winSize, winSize, winSize))
 
-		dataBGview = rolling_window(data, 
-						window=(winSize, winSize, winSize), 
-						asteps=(winSize, winSize, winSize))
+			dataBGview = rolling_window(data, 
+							window=(winSize, winSize, winSize), 
+							asteps=(winSize, winSize, winSize))
 
-		# Find blocks within maskBG that are all 1s (i.e. only contain background voxels)
-		blockMaskBG = np.squeeze(np.apply_over_axes(np.all, maskBGview, [3,4,5]))
+			# Find blocks within maskBG that are all 1s (i.e. only contain background voxels)
+			blockMaskBG = np.squeeze(np.apply_over_axes(np.all, maskBGview, [3,4,5]))
 
-		# Get the i, j, k indices where the blocks are all 1s
-		blockMaskBGindex = np.array(np.where(blockMaskBG))
+			# Get the i, j, k indices where the blocks are all 1s
+			blockMaskBGindex = np.array(np.where(blockMaskBG))
 
-		dataBGcube = np.zeros(numberOfPoints,			dtype='float32')
-		WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
+			dataBGcube = np.zeros(numberOfPoints,			dtype='float32')
+			WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
 
-		# For each block, use 3D steerable model to estimate sigma^2
-		for idx in range(blockMaskBGindex.shape[1]):
-			i, j, k     = blockMaskBGindex[:,idx]
-			dataBGcube  = dataBGview[i,j,k,...].flatten()
-			dataBGcube  = dataBGcube - np.mean(dataBGcube)
-			WRSSBG[idx] = np.vdot(dataBGcube, np.dot(LAMBDAd, dataBGcube))
-		WRSSBG = WRSSBG/np.trace(LAMBDAd)
+			# For each block, use 3D steerable model to estimate sigma^2
+			for idx in range(blockMaskBGindex.shape[1]):
+				i, j, k     = blockMaskBGindex[:,idx]
+				dataBGcube  = dataBGview[i,j,k,...].flatten()
+				dataBGcube  = dataBGcube - np.mean(dataBGcube)
+				WRSSBG[idx] = np.vdot(dataBGcube, np.dot(LAMBDAd, dataBGcube))
+			WRSSBG = WRSSBG/np.trace(LAMBDAd)
 
-		# Estimate variance as mean of sigma^2's in each block
-		variance = np.mean(WRSSBG)
+			# Estimate variance as mean of sigma^2's in each block
+			variance = np.mean(WRSSBG)
 
-		print 'done.'
-		m, s = divmod(time() - tStart, 60)
-		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-		del maskBGview 
-		del dataBGview
-		print "variance = %.6f" % variance
+			print 'done.'
+			m, s = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+			del maskBGview 
+			del dataBGview
+			print "variance = %.6f" % variance
 
 		## Compute Likelihood Ratio Statistic
 
@@ -439,6 +475,9 @@ def ResMap_algorithm(**kwargs):
 		kpoint       = np.size(LRSvecSorted) - kmax
 		maskSum      = np.sum(mask,dtype='float32')
 		maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
+		if kmax < 5e2:
+			print '\n\n\nThese numbers make no sense. Check your variance estimate... RESMAP FAILED.\n\n\n'
+			return
 		for k in range(1,kmax,int(np.ceil(kmax/5e2))):
 			result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
 			# tmp = 1-(pValue*(1.0/(maskSum+1-(kmax-k))))
