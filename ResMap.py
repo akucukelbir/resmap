@@ -27,9 +27,9 @@ Options:
   --nogui             Run ResMap in command-line mode
   --vxSize=VXSIZE     Voxel size of input map (A) [default: 0.0]
   --pVal=PVAL         P-value for likelihood ratio test [default: 0.05]
-  --minRes=MINRES     Minimum resolution (A) [default: 0.0] -> algorithm will start at just above 2.0*vxSize
-  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0] -> algorithm will stop at Nyquist/4
-  --stepRes=STEPRES   Step size (A) [default: 1.0]          -> decrease to as low as 0.25 A if finer step size is desired
+  --minRes=MINRES     Minimum resolution (A) [default: 0.0] -> algorithm will start at just above 2*vxSize
+  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0] -> algorithm will stop at around 4*vxSize
+  --stepRes=STEPRES   Step size (A) [default: 1.0]          -> min 0.25A 
   --maskVol=MASKVOL   Mask volume                           -> ResMap will automatically compute a mask
   --vis2D             Output 2D visualization
   --launchChimera     Attempt to launch Chimera after execution
@@ -38,12 +38,6 @@ Options:
 
 """
 
-# '''
-# ResMap: Tkinter GUI wrapper for ResMap algorithm. (Alp Kucukelbir, 2013)
-             
-# Please see ResMap_algorithm.py for details and documentation.
-
-# '''
 import Tkinter as tk
 from tkFileDialog import askopenfilename
 from tkMessageBox import showerror
@@ -122,7 +116,7 @@ class ResMapApp(object):
 		alphaValue_entry = tk.Entry(self.mainframe, width=5, textvariable=self.alphaValue)
 		alphaValue_entry.grid(column=2, row=4, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="usually between (0, 0.05]").grid(column=3, row=4, sticky=tk.W)
+		tk.Label(self.mainframe, text="usually between [0.01, 0.05]").grid(column=3, row=4, sticky=tk.W)
 
 		# ROW 5
 		tk.Label(self.mainframe, text="Min Resolution:").grid(column=1, row=5, sticky=tk.E)
@@ -130,7 +124,7 @@ class ResMapApp(object):
 		minRes_entry = tk.Entry(self.mainframe, width=5, textvariable=self.minRes)
 		minRes_entry.grid(column=2, row=5, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="in Angstroms (default: 0; algorithm will start at just above 2.0 * voxelSize)").grid(column=3, row=5, sticky=tk.W)
+		tk.Label(self.mainframe, text="in Angstroms (default: 0; algorithm will start at just above 2*voxelSize)").grid(column=3, row=5, sticky=tk.W)
 
 		# ROW 6
 		tk.Label(self.mainframe, text="Max Resolution:").grid(column=1, row=6, sticky=tk.E)
@@ -138,7 +132,7 @@ class ResMapApp(object):
 		maxRes_entry = tk.Entry(self.mainframe, width=5, textvariable=self.maxRes)
 		maxRes_entry.grid(column=2, row=6, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="in Angstroms (default: 0, algorithm will stop at Nyquist/4)").grid(column=3, row=6, sticky=tk.W)
+		tk.Label(self.mainframe, text="in Angstroms (default: 0, algorithm will stop at around 4*voxelSize)").grid(column=3, row=6, sticky=tk.W)
 
 		# ROW 7
 		tk.Label(self.mainframe, text="Step Size:").grid(column=1, row=7, sticky=tk.E)
@@ -146,7 +140,7 @@ class ResMapApp(object):
 		stepRes_entry = tk.Entry(self.mainframe, width=6, textvariable=self.stepRes)
 		stepRes_entry.grid(column=2, row=7, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0, decrease if finer step size is desired)").grid(column=3, row=7, sticky=tk.W)
+		tk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=7, sticky=tk.W)
 
 		# ROW 8
 		tk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=8, sticky=tk.E)
@@ -157,7 +151,7 @@ class ResMapApp(object):
 		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=8, sticky=tk.W)
 
 		# ROW 9
-		tk.Label(self.mainframe, text="Visualization Options:").grid(column=1, row=9, sticky=tk.E)
+		tk.Label(self.mainframe, text="Visualization Options:", font = "Helvetica 10 bold").grid(column=1, row=9, sticky=tk.E)
 		tk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=9, columnspan=4, sticky=tk.W)
 
 		# ROW 10
@@ -285,18 +279,6 @@ class ResMapApp(object):
 				showerror("Check Inputs", "The MRC mask file could not be read.")
 				return
 
-		# # Check if volume has been LPFed
-		# dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
-		# LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
-
-		# if LPFtest['outcome']:
-		# 	showinfo("Spectral Tools", "The volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.")
-		# 	zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
-		# 	data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
-		# 	vxSize      = float(vxSize)/zoomFactor
-		# else:
-		# 	zoomFactor = 0
-
 		showinfo("ResMap","Inputs are all valid!\n\nPress OK to close GUI and RUN.\n\nCheck console for progress.")
 
 		root.destroy()
@@ -311,20 +293,11 @@ class ResMapApp(object):
 				Mmax          = Mmax,
 				Mstep         = Mstep,
 				dataMask      = dataMask,
-				# zoomFactor    = zoomFactor,
 				graphicalOutput = self.graphicalOutput.get(),
 				chimeraLaunch   = self.chimeraLaunch.get(),
 			 )
 
-		# raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
-
-		# Python 2.x and 3.x compatible wait for input:
-		try: 
-			input = raw_input
-		except NameError: 
-			pass
-		# Wait for keystroke (for interactive mode)
-		input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
+		raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
 
 		return
 
@@ -422,18 +395,6 @@ if __name__ == '__main__':
 				exit("The mask volume (MRC/CCP4 format) could not be read.")
 
 
-		# # Check if volume has been LPFed
-		# dataPowerSpectrum = calculatePowerSpectrum(data.matrix)	
-		# LPFtest = isPowerSpectrumLPF(dataPowerSpectrum)
-
-		# if LPFtest['outcome']:
-		# 	print "\n\nThe volume appears to be low-pass filtered.\n\nThis is not ideal, but ResMap will attempt to run.\n\nThe input volume will be downsampled and upsampled within ResMap.\n\n"
-		# 	zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
-		# 	data.matrix = ndimage.interpolation.zoom(data.matrix, zoomFactor, mode='reflect')	# cubic spline downsampling
-		# 	vxSize      = float(vxSize)/zoomFactor
-		# else:
-		# 	zoomFactor = 0
-
 		# Call ResMap
 		ResMap_algorithm(
 				inputFileName = inputFileName,
@@ -444,7 +405,6 @@ if __name__ == '__main__':
 				Mmax          = Mmax,
 				Mstep         = Mstep,
 				dataMask      = dataMask,
-				# zoomFactor    = zoomFactor,
 				graphicalOutput = args['--vis2D'],
 				chimeraLaunch   = args['--launchChimera']
 			 )
