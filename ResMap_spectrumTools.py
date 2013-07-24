@@ -2,8 +2,10 @@
 ResMap_spectrumToolks: module containing spectral processing functions for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
+			   preWhitenVolume: attempts to flatten frequencies beyond a given "elbow" value
+		   displayPreWhitening: display the quasi-interactive Pre-Whitening Interface
 		  displayPowerSpectrum: debugging tool
-  			isPowerSpectrumLPF: determines whether there is a low-pass drop in the spectrum
+  			isPowerSpectrumLPF: attempts to determine whether there is a low-pass drop in the spectrum
 	    calculatePowerSpectrum: calculates the radially averaged power spectrum of a volume
 
 Requirements:
@@ -47,11 +49,12 @@ def preWhitenVolume(R, Rorig, **kwargs):
 
 	# Find the points of interest
 	indexElbow    = np.argmin((Findex-elbowAngstrom)**2)
-	indexStart    = np.argmin((Findex-(1.25*elbowAngstrom))**2)
+	indexStart    = np.argmin((Findex-(1.2*elbowAngstrom))**2)
 	indexNyquist  = xpoly[-1]
 
 	# Create the weighting function (binary, in this case) to do a weighted fit
-	wpoly = np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
+	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
+	wpoly += 0.8*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
 
 	# Do the polynomial fit
 	pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)

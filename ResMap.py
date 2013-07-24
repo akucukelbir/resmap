@@ -73,6 +73,7 @@ class ResMapApp(object):
 		self.menubar = tk.Menu(parent)
 		self.parent.config(menu = self.menubar)
 
+		# Create help menu
 		self.helpMenu = tk.Menu(self.menubar)
 		self.helpMenu.add_command(label="Documentation", command=self.showDocumentation)
 		self.helpMenu.add_command(label="About ResMap",  command=self.showAbout)
@@ -81,15 +82,14 @@ class ResMapApp(object):
 		# Create Tk variables
 		self.graphicalOutput = tk.IntVar()
 		self.chimeraLaunch   = tk.IntVar()
-
-		self.volFileName  = tk.StringVar()
-		self.voxelSize    = tk.StringVar()
-		self.alphaValue   = tk.StringVar(value="0.05")
-		self.minRes       = tk.StringVar(value="0.0")
-		self.maxRes       = tk.StringVar(value="0.0")
-		self.stepRes      = tk.StringVar(value="1.0")
-		self.variance     = tk.StringVar(value="0.0")
-		self.maskFileName = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
+		self.volFileName     = tk.StringVar()
+		self.voxelSize       = tk.StringVar()
+		self.alphaValue      = tk.StringVar(value="0.05")
+		self.minRes          = tk.StringVar(value="0.0")
+		self.maxRes          = tk.StringVar(value="0.0")
+		self.stepRes         = tk.StringVar(value="1.0")
+		self.variance        = tk.StringVar(value="0.0")
+		self.maskFileName    = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
 
 		# ROW 0
 		tk.Label(self.mainframe, text="Required Inputs", font = "Helvetica 12 bold").grid(column=1, row=0, columnspan=10, sticky=tk.W)
@@ -151,7 +151,7 @@ class ResMapApp(object):
 		variance_entry = tk.Entry(self.mainframe, width=6, textvariable=self.variance)
 		variance_entry.grid(column=2, row=8, sticky=tk.W)
 
-		tk.Label(self.mainframe, text="noise variance of input map [NOT RECOMMENDED: ResMap will assume map has already been pre-whitened]\n(default: ResMap will pre-whiten and automatically compute from the background)").grid(column=3, row=8, sticky=tk.W)		
+		tk.Label(self.mainframe, text="noise variance of input map [NOT RECOMMENDED: ResMap will assume the input map has already been pre-whitened]\n(default: ResMap will pre-whiten and automatically compute the variance from the background)").grid(column=3, row=8, sticky=tk.W)		
 
 		# ROW 9
 		tk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
@@ -177,7 +177,7 @@ class ResMapApp(object):
 
 	def load_file(self, fileNameStringVar):
 		options =  {}
-		# options['filetypes'] = [ ("All files", ".*"), ("MRC map", ".map,.mrc") ]
+		# options['filetypes'] = [ ("All files", ".*"), ("MRC map", ".map,.mrc") ]		# THIS SEEMS BUGGY...
 		options['title'] = "ResMap - Select data file"
 		fname = askopenfilename(**options)
 		if fname:
@@ -237,12 +237,12 @@ class ResMapApp(object):
 			return
 		else:
 			try:
-				Mbegin = float(self.minRes.get())
+				minRes = float(self.minRes.get())
 			except ValueError:
 				showerror("Check Inputs", "'minRes' is not a valid number. Please input a valid minimum resolution in Angstroms.")
 				return
 
-			if Mbegin < 0.0:
+			if minRes < 0.0:
 				showerror("Check Inputs", "'minRes' is not a positive number. Please input a positive minimum resolution in Angstroms.")
 				return
 
@@ -252,12 +252,12 @@ class ResMapApp(object):
 			return
 		else:
 			try:
-				Mmax = float(self.maxRes.get())
+				maxRes = float(self.maxRes.get())
 			except ValueError:
 				showerror("Check Inputs", "'maxRes' is not a valid number. Please input a valid maximum resolution in Angstroms.")
 				return
 
-			if Mmax < 0.0:
+			if maxRes < 0.0:
 				showerror("Check Inputs", "'maxRes' is not a positive number. Please input a positive maximum resolution in Angstroms.")
 				return	
 
@@ -267,12 +267,12 @@ class ResMapApp(object):
 			return
 		else:
 			try:
-				Mstep = float(self.stepRes.get())
+				stepRes = float(self.stepRes.get())
 			except ValueError:
 				showerror("Check Inputs", "'stepRes' is not a valid number. Please input a valid step size in Angstroms.")
 				return
 
-			if Mstep < 0.25:
+			if stepRes < 0.25:
 				showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.25 in Angstroms.")
 				return	
 
@@ -315,9 +315,9 @@ class ResMapApp(object):
 				data            = data,
 				vxSize          = vxSize,
 				pValue          = pValue,
-				Mbegin          = Mbegin,
-				Mmax            = Mmax,
-				Mstep           = Mstep,
+				minRes          = minRes,
+				maxRes          = maxRes,
+				stepRes         = stepRes,
 				dataMask        = dataMask,
 				variance        = variance,
 				graphicalOutput = self.graphicalOutput.get(),
@@ -342,13 +342,13 @@ class ResMapApp(object):
 if __name__ == '__main__':
 	
 	global version
-	version = "1.0.6"
+	version = "1.0.7"
 
 	args = docopt(__doc__, version=version)
 
 	if args['--nogui'] == False:
 
-		# Create root window 
+		# Create root window and initiate GUI interface
 		root = tk.Tk()
 		resmapapp = ResMapApp(root)
 		root.mainloop()
@@ -387,29 +387,29 @@ if __name__ == '__main__':
 
 		# --minRes
 		try:
-			Mbegin = float(args['--minRes'])
+			minRes = float(args['--minRes'])
 		except:
 			exit("The minimum resolution (--minRes) is not a valid floating point number.")
 
-		if Mbegin < 0.0:
+		if minRes < 0.0:
 			exit("The minimum resolution (--minRes) is not a positive number.")			
 
 		# --maxRes
 		try:
-			Mmax = float(args['--maxRes'])
+			maxRes = float(args['--maxRes'])
 		except:
 			exit("The maximum resolution (--maxRes) is not a valid floating point number.")
 
-		if Mmax < 0.0:
+		if maxRes < 0.0:
 			exit("The maximum resolution (--maxRes) is not a positive number.")						
 
 		# --stepRes
 		try:
-			Mstep = float(args['--stepRes'])
+			stepRes = float(args['--stepRes'])
 		except:
 			exit("The step size (--stepRes) is not a valid floating point number.")
 
-		if Mstep < 0.25:
+		if stepRes < 0.25:
 			exit("The step size (--stepRes) is too small.")			
 
 		# --variance
@@ -430,16 +430,15 @@ if __name__ == '__main__':
 			except:
 				exit("The mask volume (MRC/CCP4 format) could not be read.")
 
-
 		# Call ResMap
 		ResMap_algorithm(
 				inputFileName   = inputFileName,
 				data            = data,
 				vxSize          = vxSize,
 				pValue          = pValue,
-				Mbegin          = Mbegin,
-				Mmax            = Mmax,
-				Mstep           = Mstep,
+				minRes          = minRes,
+				maxRes          = maxRes,
+				stepRes         = stepRes,
 				dataMask        = dataMask,
 				variance        = variance,
 				graphicalOutput = args['--vis2D'],

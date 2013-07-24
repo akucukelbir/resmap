@@ -30,53 +30,50 @@ from ResMap_sphericalProfile import sphericalAverage
 
 def ResMap_algorithm(**kwargs):
 	'''
-	ResMap_algorithm implements the procedure described in the following article: (Alp Kucukelbir, 2013)
+	ResMap_algorithm implements the procedure described in the following article:
 
-	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, preprint.
+	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, In Review, 2013.
 
 	The procedure will (coarsely speaking) do the following things:	
 		1. Grab the volume from the the MRC data structure (class)
 		2. Calculate a mask that separates the particle from the background
-		(BETA: 2a. Amplitude correction of the volume if necessary) 
-		3. Form the required matrices for a local sinusoid-like model of a certain scale
-		4. Estimate the variance from non-overlapping blocks in the background
-		5. Calculate the likelihood ratio statistic
-		6. Compute the FDR adjusted threshold
-		7. Compare the statistic to the threshold and assign a resolution to points that pass
-		8. Repeat until max resolution is reached or most points in mask are processed
-		9. Write result out to a MRC volume
+		3. Pre-whiten the volume, if necessary
+		4. Form the required matrices for the local sinusoid-like model of the smallest scale possible
+		5. Estimate the variance from non-overlapping blocks in the background
+		6. Calculate the likelihood ratio statistic
+		7. Compute the FDR adjusted threshold
+		8. Compare the statistic to the threshold and assign a resolution to voxels that pass
+		9. Repeat until max resolution is reached or (heuristically) most points in mask are assigned
+		10. Write result out to a MRC volume
 
 	Required Parameters 
 	----------
 	inputFileName: string variable pointing to density map to analyze
 	      	 data: density map loaded as a numpy array
-	       vxSize: the voxel spacing for the density map (in voxels/Angstrom)
+	       vxSize: the voxel spacing for the density map (in Angstrom)
 	       pValue: the desired significance level (usually 0.05)
 
 	Optional Parameters 
 	----------
-	  Mbegin: starting resolution (defaults to closest half point to (2.0 * vxSize))
-	 	Mmax: stopping resolution (defaults to 4 * vxSize)
-	   Mstep: step size for resolution queries (min 0.5, default 1.0, in Angstroms)
-	dataMask: mask loaded as a numpy array (default: algorithm tries to compute a mask automatically)
+	  minRes: starting resolution 
+	  maxRes: maximum resolution to consider 
+	 stepRes: step size for resolution queries 
+	dataMask: mask loaded as a numpy array
 
 	Assumptions 
 	-------
 	ResMap assumes that the density map being analyzed has not been filtered in any way, and that 
-	some reasonable degree of amplitude correction (B-factor sharpening) has been applied, such that
-	the spherical spectrum of the map is relatively white towards the Nyquist end of the spectrum.
+	some reasonable pre-whitening has been applied, such that the noise spectrum of the map is 
+	relatively white, at least towards the Nyquist end of the spectrum.
+
+	ResMap now provides some built-in pre-whitening tools.
 
 	Returns 
 	-------
 	Writes out a new MRC volume in the same folder as the input MRC volume with '_resmap' appended to
-	the file name. Values are in Angstrom and represent the local resolution assigned to each point.
+	the file name. Values are in Angstrom and represent the local resolution assigned to each voxel.
 
-	Beta Features
-	-------------
-	Amplitude correction: there are snippets below that try to automatically perform a very basic amplitude 
-	correction. Set preWhiten = True and run at your own peril. 
 	'''
-
 
 	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
@@ -88,13 +85,14 @@ def ResMap_algorithm(**kwargs):
 	## Process inputs to function
 	print '\n\n= Reading Input Parameters'
 	tStart = time()
+
 	inputFileName   = kwargs.get('inputFileName','')
-	dataMRC         = kwargs.get('data', 0)
-	vxSize          = kwargs.get('vxSize', 1.0 )
-	pValue          = kwargs.get('pValue', 0.05)
-	Mbegin          = kwargs.get('Mbegin', 0.0 ) 
-	Mmax            = kwargs.get('Mmax',   0.0 )
-	Mstep           = kwargs.get('Mstep',  1.0 ) 
+	dataMRC         = kwargs.get('data',     0)
+	vxSize          = kwargs.get('vxSize',   1.0 )
+	pValue          = kwargs.get('pValue',   0.05)
+	minRes          = kwargs.get('minRes',   0.0 ) 
+	maxRes          = kwargs.get('maxRes',   0.0 )
+	stepRes         = kwargs.get('stepRes',  1.0 ) 
 	dataMask        = kwargs.get('dataMask', 0)
 	variance        = kwargs.get('variance', 0.0)
 	graphicalOutput = bool(kwargs.get('graphicalOutput', False))
@@ -123,24 +121,29 @@ def ResMap_algorithm(**kwargs):
 				"|        The input volume will be down-sampled within ResMap.         |\n"
 				"|                                                                     |\n"				
 				"======================================================================\n")
-		zoomFactor  = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
-		data = ndimage.interpolation.zoom(data, zoomFactor, mode='reflect')	# cubic spline down-sampling
-		vxSize      = float(vxSize)/zoomFactor
+
+		# Calculate the ratio by which the volume should be down-sampled
+		# such that the LPF cutoff becomes the new Nyquist
+		LPFfactor = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+
+		# Down- sample the volume using cubic splines
+		data   = ndimage.interpolation.zoom(data, LPFfactor, mode='reflect')
+		vxSize = float(vxSize)/LPFfactor
 	else:
 		print "  The volume does not appear to be low-pass filtered. Great!\n"
-		zoomFactor = 0
+		LPFfactor = 0
+
+	# Grab the volume size (assumed to be a cube)
+	n = data.shape[0]
 
 	# Calculate min res
-	if Mbegin <= (2.2*vxSize):
-		Mbegin = round((2.2*vxSize)/0.1)*0.1 # round to the nearest 0.1
-	M = Mbegin 
+	if minRes <= (2.2*vxSize):
+		minRes = round((2.2*vxSize)/0.1)*0.1 # round to the nearest 0.1
+	currentRes = minRes 
 
 	# Calculate max res
-	if Mmax == 0.0:
-		Mmax = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
-
-	n = data.shape[0]
-	N = int(n)		
+	if maxRes == 0.0:
+		maxRes = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
 
 	m, s   = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -149,11 +152,11 @@ def ResMap_algorithm(**kwargs):
 	print '  inputMap:\t%s' 	% inputFileName
 	print '  vxSize:\t%.2f' 		% vxSize
 	print '  pValue:\t%.2f'			% pValue
-	print '  MinRes:\t%.2f' 		% Mbegin
-	print '  MaxRes:\t%.2f'   		% Mmax
-	print '  StepSz:\t%.2f'   		% Mstep
-	print '  Variance:\t%.4f'   	% variance
-	print '  LPFfactor:\t%.2f'   	% zoomFactor
+	print '  minRes:\t%.2f' 		% minRes
+	print '  maxRes:\t%.2f'   		% maxRes
+	print '  stepRes:\t%.2f'   		% stepRes
+	print '  variance:\t%.4f'   	% variance
+	print '  LPFfactor:\t%.2f'   	% LPFfactor
 
 	print '\n= Computing Mask Separating Particle from Background'
 	tStart    = time()
@@ -175,6 +178,7 @@ def ResMap_algorithm(**kwargs):
 		dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
 	else:
 		dataMask = np.array(dataMask.matrix, dtype='bool')
+	del dataBlurred
 
 	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
@@ -182,31 +186,38 @@ def ResMap_algorithm(**kwargs):
 	m, s      = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	# BETA: Pre-whitening
+	# PRE-WHITENING
 	if variance == 0.0:
 		estimateVarianceFromBackground = True
 
 		print '\n= Computing Soft Mask Separating Particle from Background'
 		tStart      = time()
+
+		# Dilate the mask a bit so that we don't seep into the particle when we blur it later
 		boxElement  = np.ones([5, 5, 5])
 		dilatedMask = ndimage.morphology.binary_dilation(dataMask, structure=boxElement, iterations=3)
-
 		dilatedMask = np.logical_and(dilatedMask, Rinside)
 
+		# Blur the mask
 		softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n*0.02))
+
+		# Get the background
 		dataBG      = np.multiply(data,softBGmask)
+
 		m, s        = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)		
 
 		print '\n= Calculating Spherically Averaged Power Spectra'
 		tStart    = time()
 
+		# Calculate spectrum of input volume
 		dataF     = np.fft.fftshift(np.fft.fftn(data))
 		dataFabs  = np.array(np.abs(dataF), dtype='float32')
 		dataFabs  = dataFabs-np.min(dataFabs)
 		dataFabs  = dataFabs/np.max(dataFabs)
 		dataSpect = sphericalAverage(dataFabs) + epsilon
 
+		# Calculate spectrum of background volume
 		dataBGF     = np.fft.fftshift(np.fft.fftn(dataBG))
 		dataBGFabs  = np.array(np.abs(dataBGF), dtype='float32')
 		dataBGFabs  = dataBGFabs-np.min(dataBGFabs)
@@ -216,13 +227,19 @@ def ResMap_algorithm(**kwargs):
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-		# PREWHITENING 
+		# Usually b-factor sharpening has gone awry beyond about 10A
+		# therefore we take a first shot of ramping the spectrum up or down beyond 10A
 		oldElbowAngstrom = 0
 		newElbowAngstrom = max(10,2.1*vxSize)
 
+		# While the user changes the elbow in the Pre-Whitening Interface, repeat the pre-whitening.
+		# 	this loop will stop when the user does NOT change the elbow in the interface.
+		#
+		#	it is a bit of a hack, but it works completely within matplotlib which is a relief
+		#
 		while newElbowAngstrom != oldElbowAngstrom:
 
-			preWhiteningResult = preWhitenVolume(R, Rorig,
+			preWhiteningResult = preWhitenVolume(R, Rorig,				# Note the two copies of R here
 									elbowAngstrom = newElbowAngstrom,
 									dataBGSpect   = dataBGSpect,
 									dataF         = dataF,
@@ -277,16 +294,17 @@ def ResMap_algorithm(**kwargs):
 					"|                                                                     |\n"																	
 					"=======================================================================\n")
 
-
+	# Initialize the ResMap result volume
 	resTOTAL = np.zeros_like(data)
 
+	# Continue testing larger and larger scales as long as there is "moreToProcess" (see below)
 	moreToProcess = True
 	while moreToProcess:
+		print '\n\n= Calculating Local Resolution for %.2f Angstroms\n' % currentRes
 
-		print '\n\n= Calculating Local Resolution for %.2f Angstroms\n' % M
 		# Compute window size and form steerable bases
-		r       = np.ceil(0.5*M/vxSize)			# number of pixels around center
-		a       = (2*np.pi/M) * np.sqrt(2.0/5)	# scaling factor so that peak occurs at 1/M Angstroms
+		r       = np.ceil(0.5*currentRes/vxSize)			# number of pixels around center
+		a       = (2*np.pi/currentRes) * np.sqrt(2.0/5)		# scaling factor so that peak occurs at 1/currentRes Angstroms
 		winSize = 2*r+1		
 		print "winSize = %.2f" % winSize
 
@@ -359,7 +377,7 @@ def ResMap_algorithm(**kwargs):
 			print 'Estimating variance from non-overlapping blocks in background...',
 			tStart = time()
 
-			if M == Mbegin:
+			if currentRes == minRes:
 				# Calculate mask of background voxels within Rinside sphere but outside of particle mask
 				maskBG = Rinside-mask
 
@@ -475,13 +493,9 @@ def ResMap_algorithm(**kwargs):
 		kpoint       = np.size(LRSvecSorted) - kmax
 		maskSum      = np.sum(mask,dtype='float32')
 		maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
-		if kmax < 5e2:
-			print '\n\n\nThese numbers make no sense. Check your variance estimate... RESMAP FAILED.\n\n\n'
-			return
-		for k in range(1,kmax,int(np.ceil(kmax/5e2))):
+		for k in range(1, kmax, int(np.ceil(kmax/min(5e2,kmax/2)))):	# only compute ruben for about kmax/5e2 points
 			result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
-			# tmp = 1-(pValue*(1.0/(maskSum+1-(kmax-k))))
-			tmp = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
+			tmp    = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
 			thrFDR = LRSvecSorted[kpoint+k]
 			# print 'result[2]: %e, tmp: %e' %(result[2],tmp)
 			if result[2] > tmp:
@@ -503,23 +517,26 @@ def ResMap_algorithm(**kwargs):
 
 		# Calculate resolution
 		res      = LRS > thrFDR
-		resTOTAL = resTOTAL + M*res
+		resTOTAL = resTOTAL + currentRes*res
 
 		# Update the mask to voxels that failed this level's likelihood test
-		mask = np.array(mask - res, dtype='bool')
+		mask         = np.array(mask - res, dtype='bool')
 		newSumOfMask = np.sum(mask)
+
 		print "\nNumber of voxels assigned in this iteration = %d" % (oldSumOfMask-newSumOfMask)
+
+		# Heuristic of telling whether we are likely done
 		if oldSumOfMask-newSumOfMask < n and newSumOfMask < (n**2):
 			print 'We have probably covered all voxels of interest.'
 			moreToProcess = False
 		oldSumOfMask = newSumOfMask
 
-		if M >= Mmax:
-			print 'We have reached MaxRes = %.2f.' % Mmax
+		if currentRes >= maxRes:
+			print 'We have reached MaxRes = %.2f.' % maxRes
 			moreToProcess = False		
 
-		# Update query resolution
-		M += Mstep
+		# Update current resolution
+		currentRes += stepRes
 
 
 	# Set all voxels that were outside of the mask or that failed all resolution tests to 50 A
@@ -533,13 +550,13 @@ def ResMap_algorithm(**kwargs):
 								1:n:complex(0,old_n) ]		
 
 	# Up-sample the resulting resolution map if necessary
-	if zoomFactor > 0:
+	if LPFfactor > 0:
 		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates, order=1, mode='nearest')
-		resTOTAL[resTOTAL < Mbegin] = Mbegin
+		resTOTAL[resTOTAL < minRes] = minRes
 		resTOTAL[resTOTAL > 50] = 50
 
 	# Write results out as MRC volume
-	(fname,ext)   = os.path.splitext(inputFileName)
+	(fname,ext)    = os.path.splitext(inputFileName)
 	dataMRC.matrix = np.array(resTOTAL,dtype='float32')
 	write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
 
@@ -550,7 +567,7 @@ def ResMap_algorithm(**kwargs):
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 	
-	chimeraScriptFileName = createChimeraScript(inputFileName, Mbegin, Mmax, int(resTOTAL.shape[0]), animated=True)
+	chimeraScriptFileName = createChimeraScript(inputFileName, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
 
 	print "\nCHIMERA SCRIPT WRITTEN to: " + chimeraScriptFileName
 
