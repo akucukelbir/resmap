@@ -167,9 +167,7 @@ def ResMap_algorithm(**kwargs):
 						-n/2:n/2:complex(0,n),
 						-n/2:n/2:complex(0,n) ]
 	R       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
-	Rorig   = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
 	Rinside = R < n/2 - 1
-	del (x,y,z)	
 
 	# Check to see if mask volume was already provided
 	if hasattr(dataMask,'ndim') == False:
@@ -239,7 +237,7 @@ def ResMap_algorithm(**kwargs):
 		#
 		while newElbowAngstrom != oldElbowAngstrom:
 
-			preWhiteningResult = preWhitenVolume(R, Rorig,				# Note the two copies of R here
+			preWhiteningResult = preWhitenVolume(x,y,z,				
 									elbowAngstrom = newElbowAngstrom,
 									dataBGSpect   = dataBGSpect,
 									dataF         = dataF,
@@ -261,6 +259,8 @@ def ResMap_algorithm(**kwargs):
 								vxSize 		  = vxSize,
 								dataSlice     = data[int(n/2),:,:], 
 								dataPWSlice   = dataPW[int(n/2),:,:])
+
+			del preWhiteningResult
 
 		data = dataPW
 	else:
@@ -293,6 +293,8 @@ def ResMap_algorithm(**kwargs):
 					"|           of magnitude off... beware of the results.                |\n"		
 					"|                                                                     |\n"																	
 					"=======================================================================\n")
+
+	del (x,y,z)	
 
 	# Initialize the ResMap result volume
 	resTOTAL = np.zeros_like(data)
@@ -493,7 +495,7 @@ def ResMap_algorithm(**kwargs):
 		kpoint       = np.size(LRSvecSorted) - kmax
 		maskSum      = np.sum(mask,dtype='float32')
 		maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
-		for k in range(1, kmax, int(np.ceil(kmax/min(5e2,kmax/2)))):	# only compute ruben for about kmax/5e2 points
+		for k in range(1, kmax, int(np.ceil(kmax/min(5e2,kmax)))):	# only compute ruben for about kmax/5e2 points
 			result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
 			tmp    = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
 			thrFDR = LRSvecSorted[kpoint+k]
@@ -539,10 +541,10 @@ def ResMap_algorithm(**kwargs):
 		currentRes += stepRes
 
 
-	# Set all voxels that were outside of the mask or that failed all resolution tests to 50 A
+	# Set all voxels that were outside of the mask or that failed all resolution tests to 100 A
 	zeroVoxels = (resTOTAL==0)
-	resTOTAL[zeroVoxels] = 50
-	resTOTALma  = np.ma.masked_where(resTOTAL == 50, resTOTAL)	
+	resTOTAL[zeroVoxels] = 100
+	resTOTALma  = np.ma.masked_where(resTOTAL == 100, resTOTAL)	
 
 	old_n = dataMRC.data_size[0]
 	old_coordinates = np.mgrid[	1:n:complex(0,old_n),
@@ -553,7 +555,7 @@ def ResMap_algorithm(**kwargs):
 	if LPFfactor > 0:
 		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates, order=1, mode='nearest')
 		resTOTAL[resTOTAL < minRes] = minRes
-		resTOTAL[resTOTAL > 50] = 50
+		resTOTAL[resTOTAL > 100] = 100
 
 	# Write results out as MRC volume
 	(fname,ext)    = os.path.splitext(inputFileName)

@@ -26,10 +26,12 @@ from matplotlib.widgets import Slider
 
 from ResMap_sphericalProfile import sphericalAverage
 
-def preWhitenVolume(R, Rorig, **kwargs):
+def preWhitenVolume(x,y,z, **kwargs):
 
 	print '\n= Pre-whitening Volume'
 	tStart = time()		
+
+	R = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
 
 	elbowAngstrom = kwargs.get('elbowAngstrom',0)
 	dataBGSpect   = kwargs.get('dataBGSpect', 0)
@@ -54,15 +56,15 @@ def preWhitenVolume(R, Rorig, **kwargs):
 
 	# Create the weighting function (binary, in this case) to do a weighted fit
 	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
-	wpoly += 0.8*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
+	wpoly += 0.5*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
 
 	# Do the polynomial fit
 	pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)
 	peval = np.polynomial.polynomial.polyval(xpoly, pcoef)
 
 	# Don't change any frequencies beyond indexStart to indexNyquist
-	R[Rorig<indexStart]   = indexStart
-	R[Rorig>indexNyquist] = indexNyquist
+	R[R<indexStart]   = indexStart
+	R[R>indexNyquist] = indexNyquist
 
 	# Create the pre-whitening filter
 	Reval     = np.polynomial.polynomial.polyval(R,-1.0*pcoef)
@@ -98,7 +100,7 @@ def displayPreWhitening(**kwargs):
 	dataPWSpect   = kwargs.get('dataPWSpect', 0)
 	dataPWBGSpect = kwargs.get('dataPWBGSpect', 0)
 	xpoly         = kwargs.get('xpoly', 0)
-	vxSize        = kwargs.get('vxSize')
+	vxSize        = kwargs.get('vxSize', 0)
 	dataSlice     = kwargs.get('dataSlice', 0)	
 	dataPWSlice   = kwargs.get('dataPWSlice', 0)	
 
@@ -139,9 +141,11 @@ def displayPreWhitening(**kwargs):
 	ax1.set_xticklabels( ["%.1f" % member for member in tmp]  )
 	del tmp 
 
+	tmp = np.concatenate((dataSpect**2, dataBGSpect**2, dataPWSpect**2, dataPWBGSpect**2))
 	ax1.set_ylabel('Power Spectrum (|f|^2)')
 	ax1.set_xlabel('Angstrom')
 	ax1.set_yscale('log')
+	ax1.set_ylim((np.min(tmp), np.max(tmp)))
 	ax1.grid(linestyle='dotted')
 	ax1.legend(bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0.)
 
