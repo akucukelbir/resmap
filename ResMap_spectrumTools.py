@@ -115,7 +115,7 @@ def displayPreWhitening(**kwargs):
 	# Slider
 	axcolor = 'lightgoldenrodyellow'
 	axelbow = plt.axes([0.7, 0.65, 0.2, 0.03], axisbg=axcolor)
-	selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 60, valinit=elbowAngstrom)
+	selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 100, valinit=elbowAngstrom)
 
 	# Instructions
 	axtext.set_title('INSTRUCTIONS', color='#104E8B', fontweight='bold')
@@ -161,7 +161,8 @@ def displayPreWhitening(**kwargs):
 
 def displayPowerSpectrum(*args):
 
-	plt.figure(1)
+	fig = plt.figure(1)
+	ax = fig.add_subplot(111)
 	colors = iter(cm.rainbow(np.linspace(0, 1, len(args))))
 
 	for a in args:
@@ -170,10 +171,17 @@ def displayPowerSpectrum(*args):
 		n     = dataPowerSpectrum.size
 		xpoly = np.array(range(1,n + 1))
 
-		p = plt.plot(xpoly, dataPowerSpectrum, color=next(colors), label=a.name)
+		p = ax.plot(xpoly, dataPowerSpectrum, color=next(colors), label=a.name)
+
+		Fs     = 1/a.data_step[0]
+		tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) ) 
+		ax.set_xticks( np.linspace(1,xpoly.size,tmp.size) )
+		ax.set_xticklabels( ["%.1f" % member for member in tmp]  )
+		del tmp 
 
 	plt.yscale('log')
-	plt.ylabel('Power (normalized log scale)')
+	plt.grid(linestyle='dotted')
+	plt.ylabel('Power Spectrum (|f|^2)')
 	plt.xlabel('Frequency')
 	plt.legend(loc=3)
 
@@ -206,7 +214,7 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 
 def calculatePowerSpectrum(data):
 	
-	epsilon = 1e-20
+	epsilon = 1e-12
 
 	dataF     = np.fft.fftshift(np.fft.fftn(data))
 	dataFabs  = np.array(np.abs(dataF), dtype='float32')

@@ -13,6 +13,7 @@ Requirements:
 '''
 import os, sys
 from time import time
+from collections import OrderedDict
 
 import numpy as np
 from scipy import ndimage
@@ -120,7 +121,7 @@ def ResMap_algorithm(**kwargs):
 				"|                                                                     |\n"				
 				"|        The input volume will be down-sampled within ResMap.         |\n"
 				"|                                                                     |\n"				
-				"======================================================================\n")
+				"=======================================================================\n")
 
 		# Calculate the ratio by which the volume should be down-sampled
 		# such that the LPF cutoff becomes the new Nyquist
@@ -173,7 +174,7 @@ def ResMap_algorithm(**kwargs):
 	if hasattr(dataMask,'ndim') == False:
 		# Compute mask separating the particle from background
 		dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
-		dataMask     = dataBlurred > np.max(dataBlurred)*1e-1
+		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2
 	else:
 		dataMask = np.array(dataMask.matrix, dtype='bool')
 	del dataBlurred
@@ -185,6 +186,7 @@ def ResMap_algorithm(**kwargs):
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# PRE-WHITENING
+	dataOrig = data
 	if variance == 0.0:
 		estimateVarianceFromBackground = True
 
@@ -298,6 +300,9 @@ def ResMap_algorithm(**kwargs):
 
 	# Initialize the ResMap result volume
 	resTOTAL = np.zeros_like(data)
+
+	# Initialize empty dictionary for histogram plotting
+	resHisto = OrderedDict()
 
 	# Continue testing larger and larger scales as long as there is "moreToProcess" (see below)
 	moreToProcess = True
@@ -492,18 +497,21 @@ def ResMap_algorithm(**kwargs):
 		tStart = time()
 		LRSvecSorted = np.sort(LRSvec)
 		kmax         = np.sum(LRSvecSorted > thrUncorr)
-		kpoint       = np.size(LRSvecSorted) - kmax
-		maskSum      = np.sum(mask,dtype='float32')
-		maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
-		for k in range(1, kmax, int(np.ceil(kmax/min(5e2,kmax)))):	# only compute ruben for about kmax/5e2 points
-			result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
-			tmp    = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
-			thrFDR = LRSvecSorted[kpoint+k]
-			# print 'result[2]: %e, tmp: %e' %(result[2],tmp)
-			if result[2] > tmp:
-				# print 'HIT'
-				break
-		print 'done.'
+		if kmax == 0:
+			thrFDR = sys.float_info.max
+		else:
+			kpoint       = np.size(LRSvecSorted) - kmax
+			maskSum      = np.sum(mask,dtype='float32')
+			maskSumConst = np.sum(1.0/np.array(range(1,maskSum)))
+			for k in range(1, kmax, int(np.ceil(kmax/min(5e2,kmax)))):	# only compute ruben for about kmax/5e2 points
+				result = rubenPython(LAMBDAeig,LRSvecSorted[kpoint+k])
+				tmp    = 1.0-(pValue*((kmax-k)/(maskSum*maskSumConst)))
+				thrFDR = LRSvecSorted[kpoint+k]
+				# print 'result[2]: %e, tmp: %e' %(result[2],tmp)
+				if result[2] > tmp:
+					# print 'HIT'
+					break
+			print 'done.'
 		m, s = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
@@ -526,6 +534,9 @@ def ResMap_algorithm(**kwargs):
 		newSumOfMask = np.sum(mask)
 
 		print "\nNumber of voxels assigned in this iteration = %d" % (oldSumOfMask-newSumOfMask)
+
+		# Update value in histogram
+		resHisto[str(currentRes)] = (oldSumOfMask-newSumOfMask)
 
 		# Heuristic of telling whether we are likely done
 		if oldSumOfMask-newSumOfMask < n and newSumOfMask < (n**2):
@@ -565,7 +576,8 @@ def ResMap_algorithm(**kwargs):
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	print "\nMEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
+	print "\n  MEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
+	print "MEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 	
@@ -594,12 +606,19 @@ def ResMap_algorithm(**kwargs):
 	if graphicalOutput == True:
 		# Plots
 		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		ax1.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax2.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax3.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax4.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		f.suptitle('\nSlices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
+		ax1.imshow(dataOrig[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax2.imshow(dataOrig[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax3.imshow(dataOrig[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax4.imshow(dataOrig[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+
+		# ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+		# ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+		# ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+		# ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 	 
 		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
+		f2.suptitle('\nSlices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
 		# ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
@@ -608,8 +627,24 @@ def ResMap_algorithm(**kwargs):
 		ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 		ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 		ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+
+		# ax21.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+		# ax22.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+		# ax23.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+		# ax24.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 		
 		cax = f2.add_axes([0.9, 0.1, 0.03, 0.8])
 		f2.colorbar(im, cax=cax)
+
+		# Histogram
+		f3   = plt.figure()
+		f3.suptitle('\nHistogram of ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
+		axf3 = f3.add_subplot(111)
+		
+		axf3.bar(range(len(resHisto)), resHisto.values(), align='center')
+		axf3.set_xlabel('Resolution (Angstroms)')
+		axf3.set_xticks(range(len(resHisto)))
+		axf3.set_xticklabels(resHisto.keys())
+		axf3.set_ylabel('Number of Voxels')
 
 		plt.show()
