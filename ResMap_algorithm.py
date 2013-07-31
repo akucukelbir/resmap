@@ -171,13 +171,13 @@ def ResMap_algorithm(**kwargs):
 	Rinside = R < n/2 - 1
 
 	# Check to see if mask volume was already provided
-	if hasattr(dataMask,'ndim') == False:
+	if isinstance(dataMask,MRC_Data) == False:
 		# Compute mask separating the particle from background
 		dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
 		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2
+		del dataBlurred
 	else:
 		dataMask = np.array(dataMask.matrix, dtype='bool')
-	del dataBlurred
 
 	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
