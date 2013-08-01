@@ -232,26 +232,33 @@ def ResMap_algorithm(**kwargs):
 		oldElbowAngstrom = 0
 		newElbowAngstrom = max(10,2.1*vxSize)
 
+		# Sometimes the ramping is too much, so allow the user to adjust it down
+		oldRampWeight = 0.0
+		newRampWeight = 1.0
+
 		# While the user changes the elbow in the Pre-Whitening Interface, repeat the pre-whitening.
 		# 	this loop will stop when the user does NOT change the elbow in the interface.
 		#
 		#	it is a bit of a hack, but it works completely within matplotlib which is a relief
 		#
-		while newElbowAngstrom != oldElbowAngstrom:
+		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
 
 			preWhiteningResult = preWhitenVolume(x,y,z,				
 									elbowAngstrom = newElbowAngstrom,
 									dataBGSpect   = dataBGSpect,
 									dataF         = dataF,
 									softBGmask    = softBGmask,
-									vxSize        = vxSize)
+									vxSize        = vxSize,
+									rampWeight    = newRampWeight)
 
 			dataPW = preWhiteningResult['dataPW']
-
+			
 			oldElbowAngstrom = newElbowAngstrom
+			oldRampWeight    = newRampWeight
 
-			newElbowAngstrom = displayPreWhitening(
+			newElbowAngstrom, newRampWeight = displayPreWhitening(
 								elbowAngstrom = oldElbowAngstrom,
+								rampWeight    = oldRampWeight,
 								dataSpect     = dataSpect,
 								dataBGSpect   = dataBGSpect,
 								peval         = preWhiteningResult['peval'],
@@ -260,7 +267,8 @@ def ResMap_algorithm(**kwargs):
 								xpoly         = preWhiteningResult['xpoly'],
 								vxSize 		  = vxSize,
 								dataSlice     = data[int(n/2),:,:], 
-								dataPWSlice   = dataPW[int(n/2),:,:])
+								dataPWSlice   = dataPW[int(n/2),:,:]
+								)
 
 			del preWhiteningResult
 

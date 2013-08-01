@@ -38,6 +38,7 @@ def preWhitenVolume(x,y,z, **kwargs):
 	dataF         = kwargs.get('dataF', 0)
 	softBGmask    = kwargs.get('softBGmask', 0)
 	vxSize        = kwargs.get('vxSize', 0)
+	rampWeight    = kwargs.get('rampWeight',1.0)
 
 	epsilon = 1e-20
 
@@ -67,7 +68,7 @@ def preWhitenVolume(x,y,z, **kwargs):
 	R[R>indexNyquist] = indexNyquist
 
 	# Create the pre-whitening filter
-	Reval     = np.polynomial.polynomial.polyval(R,-1.0*pcoef)
+	Reval     = np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef)
 	pWfilter  = np.exp(Reval)
 
 	# Apply the pre-whitening filter
@@ -94,6 +95,7 @@ def preWhitenVolume(x,y,z, **kwargs):
 def displayPreWhitening(**kwargs):
 
 	elbowAngstrom = kwargs.get('elbowAngstrom',0)
+	rampWeight    = kwargs.get('rampWeight', 1.0)
 	dataSpect     = kwargs.get('dataSpect', 0)
 	dataBGSpect   = kwargs.get('dataBGSpect', 0)
 	peval         = kwargs.get('peval', 0)
@@ -105,24 +107,29 @@ def displayPreWhitening(**kwargs):
 	dataPWSlice   = kwargs.get('dataPWSlice', 0)	
 
 	# Figure
-	fig = plt.figure(figsize=(16, 9))
+	fig = plt.figure(figsize=(18, 9))
 	fig.suptitle('\nResMap Pre-Whitening Interface (beta)', fontsize=20, color='#104E8B', fontweight='bold')
 	ax1 = plt.subplot2grid((2,3), (0,0), colspan=2)
 	ax2 = plt.subplot2grid((2,3), (1, 0))
 	ax3 = plt.subplot2grid((2,3), (1, 1))
 	axtext = plt.subplot2grid((2,3), (1, 2))
 	
-	# Slider
+	# Slider for elbow
 	axcolor = 'lightgoldenrodyellow'
 	axelbow = plt.axes([0.7, 0.65, 0.2, 0.03], axisbg=axcolor)
 	selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 100, valinit=elbowAngstrom)
+
+	# Slider for rampWeight
+	axramp = plt.axes([0.7, 0.55, 0.2, 0.03], axisbg=axcolor)
+	sramp  = Slider(axramp, 'Ramp Weight', 0.0, 1.0, valinit=rampWeight)
+
 
 	# Instructions
 	axtext.set_title('INSTRUCTIONS', color='#104E8B', fontweight='bold')
 	axtext.get_xaxis().set_visible(False)
 	axtext.get_yaxis().set_visible(False)
 	axtext.text(0.5, 0.5, 
-		'Please check that the green line\nis as straight as possible,\nat least in the high frequencies.\n\nIf not, adjust the passband\nabove and close the window.\n\nResMap will try to\n pre-whiten the volume again.\n\nTo continue, close the window\n without adjusting anything.',
+		'Please check that the green line\nis as straight as possible,\nat least in the high frequencies.\n\nIf not, adjust the sliders\nabove and close the window.\n\nResMap will try to\n pre-whiten the volume again.\n\nTo continue, close the window\n without adjusting anything.',
         horizontalalignment='center',
         verticalalignment='center',
         fontsize=14,
@@ -157,7 +164,7 @@ def displayPreWhitening(**kwargs):
 
 	plt.show()
 
-	return selbow.val
+	return (selbow.val, sramp.val)
 
 def displayPowerSpectrum(*args):
 
