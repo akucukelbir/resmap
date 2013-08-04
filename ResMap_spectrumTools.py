@@ -44,7 +44,7 @@ def preWhitenVolume(x,y,z, **kwargs):
 
 	# Create the x and y variables for the polynomial regression
 	xpoly = np.array(range(1,dataBGSpect.size + 1))
-	ypoly = np.log(dataBGSpect)
+	ypoly = np.log(np.sqrt(dataBGSpect))
 
 	# Find the index at which the spectrum hits certain frequencies
 	Fs     = 1/vxSize
@@ -68,24 +68,23 @@ def preWhitenVolume(x,y,z, **kwargs):
 	R[R>indexNyquist] = indexNyquist
 
 	# Create the pre-whitening filter
-	Reval     = np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef)
-	pWfilter  = np.exp(Reval)
+	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
 
 	# Apply the pre-whitening filter
 	dataPWF     = pWfilter*dataF
 	dataPWFabs  = np.array(np.abs(dataPWF), dtype='float32')
 	dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
 	dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
-	dataPWSpect = sphericalAverage(dataPWFabs) + epsilon
+	dataPWSpect = sphericalAverage(dataPWFabs**2) + epsilon
 
-	dataPW = np.real(np.fft.ifftn(np.fft.ifftshift(dataPWF)))
+	dataPW = np.array(np.real(np.fft.ifftn(np.fft.ifftshift(dataPWF))), dtype='float32')
 
 	dataPWBG      = np.multiply(dataPW,softBGmask)
-	dataPWBGF     = np.fft.fftshift(np.fft.fftn(dataPWBG))
+	dataPWBGF     = np.array(np.fft.fftshift(np.fft.fftn(dataPWBG)), dtype='complex64')
 	dataPWBGFabs  = np.array(np.abs(dataPWBGF), dtype='float32')
 	dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)
 	dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
-	dataPWBGSpect = sphericalAverage(dataPWBGFabs) + epsilon
+	dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
 
 	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -136,11 +135,11 @@ def displayPreWhitening(**kwargs):
         transform=axtext.transAxes)
 
 	# Spectra
-	ax1.plot(xpoly, dataSpect**2,		lw=2, color='b', label='Input Map')
-	ax1.plot(xpoly, dataBGSpect**2,		lw=2, color='c', label='Background of Input Map')
+	ax1.plot(xpoly, dataSpect,		lw=2, color='b', label='Input Map')
+	ax1.plot(xpoly, dataBGSpect,		lw=2, color='c', label='Background of Input Map')
 	ax1.plot(xpoly, np.exp(peval)**2,	lw=2, color='r', linestyle='dashed', label='Fitted Line')
-	ax1.plot(xpoly, dataPWSpect**2,		lw=2, color='m', label='Pre-Whitened Map')
-	ax1.plot(xpoly, dataPWBGSpect**2,	lw=2, color='g', label='Background of Pre-Whitened Map')
+	ax1.plot(xpoly, dataPWSpect,		lw=2, color='m', label='Pre-Whitened Map')
+	ax1.plot(xpoly, dataPWBGSpect,	lw=2, color='g', label='Background of Pre-Whitened Map')
 
 	Fs     = 1/vxSize
 	tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) ) 
@@ -148,7 +147,7 @@ def displayPreWhitening(**kwargs):
 	ax1.set_xticklabels( ["%.1f" % member for member in tmp]  )
 	del tmp 
 
-	tmp = np.concatenate((dataSpect**2, dataBGSpect**2, dataPWSpect**2, dataPWBGSpect**2))
+	tmp = np.concatenate((dataSpect, dataBGSpect, dataPWSpect, dataPWBGSpect))
 	ax1.set_ylabel('Power Spectrum (|f|^2)')
 	ax1.set_xlabel('Angstrom')
 	ax1.set_yscale('log')
@@ -223,12 +222,13 @@ def calculatePowerSpectrum(data):
 	
 	epsilon = 1e-12
 
-	dataF     = np.fft.fftshift(np.fft.fftn(data))
+	dataF     = np.array(np.fft.fftshift(np.fft.fftn(data)), dtype='complex64')
 	dataFabs  = np.array(np.abs(dataF), dtype='float32')
 	dataFabs  = dataFabs-np.min(dataFabs)
 	dataFabs  = dataFabs/np.max(dataFabs)
 
 	dataPowerSpectrum = sphericalAverage(dataFabs**2) + epsilon
+	del dataFabs
 
-	return dataPowerSpectrum
+	return (dataF, dataPowerSpectrum)
 

@@ -109,8 +109,11 @@ def ResMap_algorithm(**kwargs):
 	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
 	tStart = time()
 
-	dataPowerSpectrum = calculatePowerSpectrum(data)	
-	LPFtest           = isPowerSpectrumLPF(dataPowerSpectrum)
+	(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)	
+	LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+
+	LPFtest['outcome'] = True
+	LPFtest['factor'] = 0.9
 
 	if LPFtest['outcome']:
 		print ( "=======================================================================\n"
@@ -164,16 +167,16 @@ def ResMap_algorithm(**kwargs):
 	
 	# We assume the particle is at the center of the volume
 	# Create spherical mask
-	[x,y,z] = np.mgrid[ -n/2:n/2:complex(0,n),
-						-n/2:n/2:complex(0,n),
-						-n/2:n/2:complex(0,n) ]
+	[x,y,z] = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
+								  -n/2:n/2:complex(0,n),
+								  -n/2:n/2:complex(0,n) ], dtype='float32')
 	R       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
 	Rinside = R < n/2 - 1
 
 	# Check to see if mask volume was already provided
 	if isinstance(dataMask,MRC_Data) == False:
 		# Compute mask separating the particle from background
-		dataBlurred  = filters.gaussian_filter(data, float(n*0.02))	# kernel size 2% of n
+		dataBlurred  = filters.gaussian_filter(data, float(n)*0.02)	# kernel size 2% of n
 		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2
 		del dataBlurred
 	else:
@@ -199,10 +202,11 @@ def ResMap_algorithm(**kwargs):
 		dilatedMask = np.logical_and(dilatedMask, Rinside)
 
 		# Blur the mask
-		softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n*0.02))
+		softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n)*0.02)
 
 		# Get the background
 		dataBG      = np.multiply(data,softBGmask)
+		del boxElement, dataMask, dilatedMask
 
 		m, s        = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)		
@@ -210,19 +214,13 @@ def ResMap_algorithm(**kwargs):
 		print '\n= Calculating Spherically Averaged Power Spectra'
 		tStart    = time()
 
-		# Calculate spectrum of input volume
-		dataF     = np.fft.fftshift(np.fft.fftn(data))
-		dataFabs  = np.array(np.abs(dataF), dtype='float32')
-		dataFabs  = dataFabs-np.min(dataFabs)
-		dataFabs  = dataFabs/np.max(dataFabs)
-		dataSpect = sphericalAverage(dataFabs) + epsilon
+		# Calculate spectrum of input volume only if downsampled, otherwise use previous computation
+		if LPFfactor != 0.0:
+			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
 
 		# Calculate spectrum of background volume
-		dataBGF     = np.fft.fftshift(np.fft.fftn(dataBG))
-		dataBGFabs  = np.array(np.abs(dataBGF), dtype='float32')
-		dataBGFabs  = dataBGFabs-np.min(dataBGFabs)
-		dataBGFabs  = dataBGFabs/np.max(dataBGFabs)
-		dataBGSpect = sphericalAverage(dataBGFabs) + epsilon
+		(dataBGF, dataBGSpect) = calculatePowerSpectrum(dataBG)
+		del dataBG, dataBGF
 
 		m, s      = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -259,7 +257,7 @@ def ResMap_algorithm(**kwargs):
 			newElbowAngstrom, newRampWeight = displayPreWhitening(
 								elbowAngstrom = oldElbowAngstrom,
 								rampWeight    = oldRampWeight,
-								dataSpect     = dataSpect,
+								dataSpect     = dataPowerSpectrum,
 								dataBGSpect   = dataBGSpect,
 								peval         = preWhiteningResult['peval'],
 								dataPWSpect   = preWhiteningResult['dataPWSpect'],
@@ -273,6 +271,7 @@ def ResMap_algorithm(**kwargs):
 			del preWhiteningResult
 
 		data = dataPW
+		del softBGmask, dataF, dataPW
 	else:
 		estimateVarianceFromBackground = False
 		print ( "=======================================================================\n"

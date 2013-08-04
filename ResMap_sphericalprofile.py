@@ -45,18 +45,25 @@ def sphericalAverage(image, center=None, binsize=1.0):
 	lack of data, but users let me know if an alternative is prefered...
 	
 	"""
-	# Calculate the indices from the image
-	(x,y,z) = np.indices(image.shape)
+
 	n 	    = image.shape[0]
 
-	if center is None:
-		center = np.array([(x.max()-x.min())/2.0, 
-						   (y.max()-y.min())/2.0, 
-						   (z.max()-z.min())/2.0])
+	[x,y,z] = np.mgrid[ -n/2:n/2:complex(0,n),
+						-n/2:n/2:complex(0,n),
+						-n/2:n/2:complex(0,n) ]
+	r       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
 
-	r = np.sqrt((x - center[0])**2 +  
-				(y - center[1])**2 + 
-				(z - center[2])**2)
+	# Calculate the indices from the image
+	# (x,y,z) = np.indices(image.shape)
+	#
+	# if center is None:
+	# 	center = np.array([(x.max()-x.min())/2.0, 
+	# 					   (y.max()-y.min())/2.0, 
+	# 					   (z.max()-z.min())/2.0])
+
+	# r = np.sqrt((x - center[0])**2 +  
+	# 			(y - center[1])**2 + 
+	# 			(z - center[2])**2)
 
 	# the 'bins' as initially defined are lower/upper bounds for each bin
 	# so that values will be in [lower,upper)  
@@ -74,11 +81,10 @@ def sphericalAverage(image, center=None, binsize=1.0):
 	# recall that bins are from 1 to nbins (which is expressed in array terms by xrange(1,nbins+1) )
 	# radial_prof.shape = bin_centers.shape
 
-	imageFlat = image.flat
 	# radial_prof = np.zeros((nbins-1), dtype='float32')
 	# for b in xrange(1,nbins-1):
 	# 	radial_prof[b] = np.sum(imageFlat[whichbin==b])
 	# radial_prof = radial_prof/nr[:-1]
-	radial_prof = sum_by_group(imageFlat,whichbin)/nr
+	radial_prof = sum_by_group(image.flat,whichbin)/nr
 
 	return radial_prof
