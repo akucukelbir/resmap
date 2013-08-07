@@ -19,6 +19,7 @@ from time import time
 
 import numpy as np
 from scipy import signal
+from scipy import fftpack
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -31,9 +32,10 @@ def preWhitenVolume(x,y,z, **kwargs):
 	print '\n= Pre-whitening Volume'
 	tStart = time()		
 
-	R = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
+	R = np.sqrt(x**2 + y**2 + z**2)
+	del x, y, z
 
-	elbowAngstrom = kwargs.get('elbowAngstrom',0)
+	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
 	dataBGSpect   = kwargs.get('dataBGSpect', 0)
 	dataF         = kwargs.get('dataF', 0)
 	softBGmask    = kwargs.get('softBGmask', 0)
@@ -71,17 +73,22 @@ def preWhitenVolume(x,y,z, **kwargs):
 	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
 
 	# Apply the pre-whitening filter
-	dataPWF     = pWfilter*dataF
-	dataPWFabs  = np.array(np.abs(dataPWF), dtype='float32')
+	dataF       = np.multiply(pWfilter,dataF)
+	del pWfilter, R
+
+	dataPWFabs  = np.abs(dataF)
 	dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
 	dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
 	dataPWSpect = sphericalAverage(dataPWFabs**2) + epsilon
 
-	dataPW = np.array(np.real(np.fft.ifftn(np.fft.ifftshift(dataPWF))), dtype='float32')
+	dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataF)))
+	del dataF
 
 	dataPWBG      = np.multiply(dataPW,softBGmask)
-	dataPWBGF     = np.array(np.fft.fftshift(np.fft.fftn(dataPWBG)), dtype='complex64')
-	dataPWBGFabs  = np.array(np.abs(dataPWBGF), dtype='float32')
+	dataPWBG     = np.array(fftpack.fftshift(fftpack.fftn(dataPWBG,overwrite_x=True)), dtype='complex64')
+	dataPWBGFabs  = np.abs(dataPWBG)
+	del dataPWBG
+
 	dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)
 	dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
 	dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
@@ -198,10 +205,6 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	# Calculated derivative of log of dataPowerSpectrum
 	diffLogPowerSpectrum = np.diff(np.log(dataPowerSpectrum))
 
-	# plt.figure(2)
-	# p2 = plt.plot(diffLogPowerSpectrum,'r')
-	# plt.show()
-
 	# Find positive peaks in the derivative
 	peakInd = signal.find_peaks_cwt(-1*diffLogPowerSpectrum, np.arange(1,10), min_snr=2)
 
@@ -209,10 +212,10 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	maxInd = np.max(peakInd)
 
 	# Calculate the mean and variance of the derivative of the power spectrum beyond maxInd
-	m, v   = np.mean(diffLogPowerSpectrum[maxInd+1:]), np.var(diffLogPowerSpectrum[maxInd+1:])
+	m, v   = np.mean(diffLogPowerSpectrum[maxInd+3:]), np.var(diffLogPowerSpectrum[maxInd+3:])
 
 	# If the mean and variance are basically zero after maxInd, it is highly likely that the volume was low-pass filtered
-	thr = 1e-6
+	thr = 1e-4
 	if abs(m) < thr and v < thr:
 		return {'outcome':True, 'factor': float(maxInd)/dataPowerSpectrum.size}
 	else:
@@ -222,8 +225,9 @@ def calculatePowerSpectrum(data):
 	
 	epsilon = 1e-12
 
-	dataF     = np.array(np.fft.fftshift(np.fft.fftn(data)), dtype='complex64')
-	dataFabs  = np.array(np.abs(dataF), dtype='float32')
+	# dataF     = np.array(np.fft.fftshift(np.fft.fftn(data)), dtype='complex64')
+	dataF     = np.array(fftpack.fftshift(fftpack.fftn(data)), dtype='complex64')
+	dataFabs  = np.abs(dataF)
 	dataFabs  = dataFabs-np.min(dataFabs)
 	dataFabs  = dataFabs/np.max(dataFabs)
 

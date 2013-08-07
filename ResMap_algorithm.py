@@ -100,8 +100,8 @@ def ResMap_algorithm(**kwargs):
 	chimeraLaunch   = bool(kwargs.get('chimeraLaunch', False))
  
 	# Extract volume from MRC class
-	data   = dataMRC.matrix
-	data   = data-np.mean(data)
+	data     = dataMRC.matrix
+	data     = data-np.mean(data)
 
 	m, s   = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -109,11 +109,8 @@ def ResMap_algorithm(**kwargs):
 	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
 	tStart = time()
 
-	(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)	
+	(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
 	LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
-
-	LPFtest['outcome'] = True
-	LPFtest['factor'] = 0.9
 
 	if LPFtest['outcome']:
 		print ( "=======================================================================\n"
@@ -170,7 +167,7 @@ def ResMap_algorithm(**kwargs):
 	[x,y,z] = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
 								  -n/2:n/2:complex(0,n),
 								  -n/2:n/2:complex(0,n) ], dtype='float32')
-	R       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
+	R       = np.array(np.sqrt(x**2 + y**2 + z**2), 	   dtype='float32')
 	Rinside = R < n/2 - 1
 
 	# Check to see if mask volume was already provided
@@ -180,7 +177,20 @@ def ResMap_algorithm(**kwargs):
 		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2
 		del dataBlurred
 	else:
-		dataMask = np.array(dataMask.matrix, dtype='bool')
+		if LPFfactor == 0.0:
+			dataMask = np.array(dataMask.matrix, dtype='bool')
+		else:
+			dataMask = ndimage.interpolation.zoom(dataMask.matrix, LPFfactor, mode='reflect')
+			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)
+			dataMask = dataMask > np.max(dataMask)*5e-2
+
+			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+			f.suptitle('\nSlices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
+			ax1.imshow(dataMask[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			ax2.imshow(dataMask[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			ax3.imshow(dataMask[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			ax4.imshow(dataMask[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
+			plt.show()
 
 	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
@@ -189,7 +199,6 @@ def ResMap_algorithm(**kwargs):
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# PRE-WHITENING
-	dataOrig = data
 	if variance == 0.0:
 		estimateVarianceFromBackground = True
 
@@ -562,18 +571,25 @@ def ResMap_algorithm(**kwargs):
 	# Set all voxels that were outside of the mask or that failed all resolution tests to 100 A
 	zeroVoxels = (resTOTAL==0)
 	resTOTAL[zeroVoxels] = 100
-	resTOTALma  = np.ma.masked_where(resTOTAL == 100, resTOTAL)	
+	resTOTALma  = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)	
 
-	old_n = dataMRC.data_size[0]
-	old_coordinates = np.mgrid[	1:n:complex(0,old_n),
-								1:n:complex(0,old_n),
-								1:n:complex(0,old_n) ]		
+	# Print results
+	print "\n  MEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
+	print "MEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
+
+	dataOrig = dataMRC.matrix
+	old_n    = dataMRC.data_size[0]
+	old_coordinates = np.mgrid[	0:n-1:complex(0,old_n),
+								0:n-1:complex(0,old_n),
+								0:n-1:complex(0,old_n) ]		
 
 	# Up-sample the resulting resolution map if necessary
 	if LPFfactor > 0:
 		resTOTAL = ndimage.map_coordinates(resTOTAL, old_coordinates, order=1, mode='nearest')
-		resTOTAL[resTOTAL < minRes] = minRes
-		resTOTAL[resTOTAL > 100] = 100
+		resTOTAL[resTOTAL <= minRes] = minRes
+		resTOTAL[resTOTAL > currentRes] = 100
+
+		resTOTALma = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)	
 
 	# Write results out as MRC volume
 	(fname,ext)    = os.path.splitext(inputFileName)
@@ -582,9 +598,6 @@ def ResMap_algorithm(**kwargs):
 
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-
-	print "\n  MEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
-	print "MEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 	
@@ -611,13 +624,14 @@ def ResMap_algorithm(**kwargs):
 			print "\n\n\n!!! ResMap is having trouble finding and/or launching UCSF Chimera. Please manually load the script into Chimera. !!!\n\n\n"
 
 	if graphicalOutput == True:
+
 		# Plots
 		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 		f.suptitle('\nSlices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
-		ax1.imshow(dataOrig[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax2.imshow(dataOrig[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax3.imshow(dataOrig[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		ax4.imshow(dataOrig[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax1.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax2.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax3.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		ax4.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 
 		# ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
 		# ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
@@ -626,14 +640,14 @@ def ResMap_algorithm(**kwargs):
 	 
 		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
 		f2.suptitle('\nSlices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
-		# ax21.imshow(data[int(3*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax22.imshow(data[int(4*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax23.imshow(data[int(5*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax24.imshow(data[int(6*n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		im = ax21.imshow(resTOTALma[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-		ax22.imshow(resTOTALma[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-		ax23.imshow(resTOTALma[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-		ax24.imshow(resTOTALma[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		# ax21.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+		# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest") 
+		im = ax21.imshow(resTOTALma[int(3*old_n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		ax22.imshow(     resTOTALma[int(4*old_n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		ax23.imshow(     resTOTALma[int(5*old_n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+		ax24.imshow(     resTOTALma[int(6*old_n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 
 		# ax21.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
 		# ax22.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
