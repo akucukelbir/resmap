@@ -184,14 +184,6 @@ def ResMap_algorithm(**kwargs):
 			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)
 			dataMask = dataMask > np.max(dataMask)*5e-2
 
-			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-			f.suptitle('\nSlices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
-			ax1.imshow(dataMask[int(3*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-			ax2.imshow(dataMask[int(4*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-			ax3.imshow(dataMask[int(5*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-			ax4.imshow(dataMask[int(6*n/9),:,:], cmap=plt.cm.jet, interpolation="nearest")
-			plt.show()
-
 	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
 
