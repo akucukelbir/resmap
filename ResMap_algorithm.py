@@ -637,7 +637,7 @@ def ResMap_algorithm(**kwargs):
 		# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest") 
-		vminRes, vmaxRes = minRes, currentRes
+		vminRes, vmaxRes = minRes, maxRes
 		im = ax21.imshow(resTOTALma[int(3*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 		ax22.imshow(     resTOTALma[int(4*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 		ax23.imshow(     resTOTALma[int(5*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
