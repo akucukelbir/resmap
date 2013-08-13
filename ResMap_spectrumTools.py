@@ -98,6 +98,80 @@ def preWhitenVolume(x,y,z, **kwargs):
 
 	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval':peval, 'xpoly':xpoly}
 
+def preWhitenVolumeSplit(x,y,z, **kwargs):
+
+	print '\n= Pre-whitening Volume'
+	tStart = time()		
+
+	R = np.sqrt(x**2 + y**2 + z**2)
+	del x, y, z
+
+	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
+	dataBGSpect   = kwargs.get('dataBGSpect', 0)
+	dataAF        = kwargs.get('dataAF', 0)
+	dataBF        = kwargs.get('dataBF', 0)
+	vxSize        = kwargs.get('vxSize', 0)
+	rampWeight    = kwargs.get('rampWeight',1.0)
+
+	epsilon = 1e-20
+
+	# Create the x and y variables for the polynomial regression
+	xpoly = np.array(range(1,dataBGSpect.size + 1))
+	ypoly = np.log(np.sqrt(dataBGSpect))
+
+	# Find the index at which the spectrum hits certain frequencies
+	Fs     = 1/vxSize
+	Findex = 1/( Fs/2 * np.linspace(epsilon, 1, xpoly.size) )
+
+	# Find the points of interest
+	indexElbow    = np.argmin((Findex-elbowAngstrom)**2)
+	indexStart    = np.argmin((Findex-(1.05*elbowAngstrom))**2)
+	indexNyquist  = xpoly[-1]
+
+	# Create the weighting function (binary, in this case) to do a weighted fit
+	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
+	wpoly += 0.5*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
+
+	# Do the polynomial fit
+	pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)
+	peval = np.polynomial.polynomial.polyval(xpoly, pcoef)
+
+	# Don't change any frequencies beyond indexStart to indexNyquist
+	R[R<indexStart]   = indexStart
+	R[R>indexNyquist] = indexNyquist
+
+	# Create the pre-whitening filter
+	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
+
+	# Apply the pre-whitening filter
+	dataAF = np.multiply(pWfilter,dataAF)
+	dataBF = np.multiply(pWfilter,dataBF)
+	del pWfilter, R
+
+	# dataPWFabs  = np.abs(dataF)
+	# dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
+	# dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
+	# dataPWSpect = sphericalAverage(dataPWFabs**2) + epsilon
+
+	dataAPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataAF)))
+	dataBPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataBF)))
+	del dataAF, dataBF
+
+	# dataPWBG      = np.multiply(dataPW,softBGmask)
+	# dataPWBG     = np.array(fftpack.fftshift(fftpack.fftn(dataPWBG,overwrite_x=True)), dtype='complex64')
+	# dataPWBGFabs  = np.abs(dataPWBG)
+	# del dataPWBG
+
+	# dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)
+	# dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
+	# dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
+
+	m, s = divmod(time() - tStart, 60)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	return {'dataAPW':dataAPW, 'dataBPW':dataBPW, 'peval':peval, 'xpoly':xpoly}
+
+
 def displayPreWhitening(**kwargs):
 
 	elbowAngstrom = kwargs.get('elbowAngstrom',0)
@@ -225,7 +299,6 @@ def calculatePowerSpectrum(data):
 	
 	epsilon = 1e-12
 
-	# dataF     = np.array(np.fft.fftshift(np.fft.fftn(data)), dtype='complex64')
 	dataF     = np.array(fftpack.fftshift(fftpack.fftn(data)), dtype='complex64')
 	dataFabs  = np.abs(dataF)
 	dataFabs  = dataFabs-np.min(dataFabs)
