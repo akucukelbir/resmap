@@ -2,7 +2,7 @@
 ResMap is a Python (NumPy/SciPy) application with a Tkinter GUI. It is a software package for computing the 
 local resolution of 3D density maps studied in structural biology, primarily electron cryo-microscopy (cryo-EM).
 
-Please find the manual at https://sourceforge.net/projects/resmap/
+Please find the manual at http://resmap.sourceforge.net
 
 If you use ResMap in your work, please consider citing us:
 
@@ -337,7 +337,7 @@ class ResMapApp(object):
 		 "Please send comments, suggestions, and bug reports to alp.kucukelbir@yale.edu or hemant.tagare@yale.edu"))
 
 	def showDocumentation(self):
-		showinfo("ResMap Documentation","Please go to http://sf.net/p/resmap to download the manual.")
+		showinfo("ResMap Documentation","Please go to http://resmap.sourceforge.net to download the manual.")
 
 if __name__ == '__main__':
 	

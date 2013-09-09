@@ -84,9 +84,9 @@ def preWhitenVolume(x,y,z, **kwargs):
 	dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataF)))
 	del dataF
 
-	dataPWBG      = np.multiply(dataPW,softBGmask)
+	dataPWBG     = np.multiply(dataPW,softBGmask)
 	dataPWBG     = np.array(fftpack.fftshift(fftpack.fftn(dataPWBG,overwrite_x=True)), dtype='complex64')
-	dataPWBGFabs  = np.abs(dataPWBG)
+	dataPWBGFabs = np.abs(dataPWBG)
 	del dataPWBG
 
 	dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)

@@ -174,15 +174,15 @@ def ResMap_algorithm(**kwargs):
 	if isinstance(dataMask,MRC_Data) == False:
 		# Compute mask separating the particle from background
 		dataBlurred  = filters.gaussian_filter(data, float(n)*0.02)	# kernel size 2% of n
-		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2
+		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2		# threshold at 5% of max value
 		del dataBlurred
 	else:
 		if LPFfactor == 0.0:
 			dataMask = np.array(dataMask.matrix, dtype='bool')
-		else:
+		else:	# Low pass filter the given mask
 			dataMask = ndimage.interpolation.zoom(dataMask.matrix, LPFfactor, mode='reflect')
-			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)
-			dataMask = dataMask > np.max(dataMask)*5e-2
+			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)	# kernel size 2% of n
+			dataMask = dataMask > np.max(dataMask)*5e-2					# threshold at 5% of max value
 
 	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
 	oldSumOfMask = np.sum(mask)
