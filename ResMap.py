@@ -45,6 +45,9 @@ from tkFileDialog import askopenfilename
 from tkMessageBox import showerror
 from tkMessageBox import showinfo
 
+import ttk
+# from ttk import Notebook 
+
 import os
 from docopt import docopt
 from sys import exit
@@ -60,24 +63,60 @@ class ResMapApp(object):
 
 	def __init__(self, parent):
 
+		# General Settings
 		self.parent = parent
-		self.parent.title("Local Resolution Map (ResMap) v" + version)
+		self.parent.title("ResMap (Local Resolution) v" + version)
+		self.parent.option_add('*tearOff', False)
 
-		# Create frame widget that holds everything 
-		self.mainframe = tk.Frame(parent)
+		self.myStyle = ttk.Style()
+		self.myStyle.configure('ResMap.TButton', foreground='red4', font='Helvetica 14 bold')
+
+
+		## MENUBAR
+		# Create menubar frame
+		self.menubar = ttk.Frame(parent);
+		self.menubar.pack(side = tk.TOP, fill = tk.X)
+
+		# Create Help menubutton
+		self.mb_help = tk.Menubutton(self.menubar, text="Help")
+		self.mb_help.pack(side = tk.RIGHT)
+
+		# Create Help menu
+		self.helpMenu = tk.Menu(self.mb_help)
+		self.helpMenu.add_command(label="Documentation", command=self.showDocumentation)
+		self.helpMenu.add_command(label="About ResMap",  command=self.showAbout)
+
+		# Attach the Help menu to the Help menubutton
+		self.mb_help.config(menu = self.helpMenu)
+
+
+		## MASTER FRAME
+		# Create master frame that holds everything 
+		self.masterframe = ttk.Frame(parent)
+		self.masterframe.pack()
+
+		# Create notebook
+		self.nb = ttk.Notebook(self.masterframe, style='ResMap.TNotebook')  # create the ttk.Notebook widget
+		self.nb.enable_traversal() # allow for keyboard bindings
+		self.nb.pack()
+
+		# Create single volume input frame 
+		self.mainframe = ttk.Frame(self.nb)
+
 		self.mainframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
 		self.mainframe.columnconfigure(0, weight=1)
 		self.mainframe.rowconfigure(   0, weight=1)
 
-		# Create menubar
-		self.menubar = tk.Menu(parent)
-		self.parent.config(menu = self.menubar)
+		self.nb.add(self.mainframe, text='Single Volume Input', underline=0, padding=10)
 
-		# Create help menu
-		self.helpMenu = tk.Menu(self.menubar)
-		self.helpMenu.add_command(label="Documentation", command=self.showDocumentation)
-		self.helpMenu.add_command(label="About ResMap",  command=self.showAbout)
-		self.menubar.add_cascade(label="Help", menu=self.helpMenu)
+		# Create double volume input frame 
+		self.doubleframe = tk.Frame(self.nb)
+
+		self.doubleframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
+		self.doubleframe.columnconfigure(0, weight=1)
+		self.doubleframe.rowconfigure(   0, weight=1)
+
+		self.nb.add(self.doubleframe, text='Double Volume Input', underline=0, padding=10)
 
 		# Create Tk variables
 		self.graphicalOutput = tk.IntVar()
@@ -97,15 +136,15 @@ class ResMapApp(object):
 		# ROW 1
 		tk.Label(self.mainframe, text="Volume:").grid(column=1, row=1, sticky=tk.E)
 
-		volFileName_entry = tk.Entry(self.mainframe, width=100, textvariable=self.volFileName)
+		volFileName_entry = ttk.Entry(self.mainframe, width=100, textvariable=self.volFileName)
 		volFileName_entry.grid(column=2, columnspan=10, row=1, sticky=(tk.W, tk.E))
 
-		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.volFileName))).grid(column=12, row=1, sticky=tk.W)
+		ttk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.volFileName))).grid(column=12, row=1, sticky=tk.W)
 
 		# ROW 2
 		tk.Label(self.mainframe, text="Voxel Size:").grid(column=1, row=2, sticky=tk.E)
 
-		voxelSize_entry = tk.Entry(self.mainframe, width=5, textvariable=self.voxelSize)
+		voxelSize_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.voxelSize)
 		voxelSize_entry.grid(column=2, row=2, sticky=tk.W)
 
 		tk.Label(self.mainframe, text="in Angstroms (A/voxel)").grid(column=3, row=2, sticky=tk.W)
@@ -116,7 +155,7 @@ class ResMapApp(object):
 		# ROW 4
 		tk.Label(self.mainframe, text="Confidence Level:").grid(column=1, row=4, sticky=tk.E)
 
-		alphaValue_entry = tk.Entry(self.mainframe, width=5, textvariable=self.alphaValue)
+		alphaValue_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.alphaValue)
 		alphaValue_entry.grid(column=2, row=4, sticky=tk.W)
 
 		tk.Label(self.mainframe, text="usually between [0.01, 0.05]").grid(column=3, row=4, sticky=tk.W)
@@ -124,7 +163,7 @@ class ResMapApp(object):
 		# ROW 5
 		tk.Label(self.mainframe, text="Min Resolution:").grid(column=1, row=5, sticky=tk.E)
 
-		minRes_entry = tk.Entry(self.mainframe, width=5, textvariable=self.minRes)
+		minRes_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.minRes)
 		minRes_entry.grid(column=2, row=5, sticky=tk.W)
 
 		tk.Label(self.mainframe, text="in Angstroms (default: algorithm will start at just above 2*voxelSize)").grid(column=3, row=5, sticky=tk.W)
@@ -132,7 +171,7 @@ class ResMapApp(object):
 		# ROW 6
 		tk.Label(self.mainframe, text="Max Resolution:").grid(column=1, row=6, sticky=tk.E)
 
-		maxRes_entry = tk.Entry(self.mainframe, width=5, textvariable=self.maxRes)
+		maxRes_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.maxRes)
 		maxRes_entry.grid(column=2, row=6, sticky=tk.W)
 
 		tk.Label(self.mainframe, text="in Angstroms (default: algorithm will stop at around 4*voxelSize)").grid(column=3, row=6, sticky=tk.W)
@@ -140,7 +179,7 @@ class ResMapApp(object):
 		# ROW 7
 		tk.Label(self.mainframe, text="Step Size:").grid(column=1, row=7, sticky=tk.E)
 
-		stepRes_entry = tk.Entry(self.mainframe, width=6, textvariable=self.stepRes)
+		stepRes_entry = ttk.Entry(self.mainframe, width=6, textvariable=self.stepRes)
 		stepRes_entry.grid(column=2, row=7, sticky=tk.W)
 
 		tk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=7, sticky=tk.W)
@@ -148,7 +187,7 @@ class ResMapApp(object):
 		# ROW 8
 		tk.Label(self.mainframe, text="Noise Variance:").grid(column=1, row=8, sticky=tk.E)
 
-		variance_entry = tk.Entry(self.mainframe, width=6, textvariable=self.variance)
+		variance_entry = ttk.Entry(self.mainframe, width=6, textvariable=self.variance)
 		variance_entry.grid(column=2, row=8, sticky=tk.W)
 
 		tk.Label(self.mainframe, text="noise variance of input map [NOT RECOMMENDED: ResMap will assume the input map has already been pre-whitened]\n(default: ResMap will pre-whiten and automatically compute the variance from the background)").grid(column=3, row=8, sticky=tk.W)		
@@ -156,18 +195,18 @@ class ResMapApp(object):
 		# ROW 9
 		tk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
 
-		maskFileName_entry = tk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, fg="gray")
+		maskFileName_entry = ttk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, foreground="gray")
 		maskFileName_entry.grid(column=2, columnspan=10, row=9, sticky=(tk.W, tk.E))
 
-		tk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
+		ttk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
 
 		# ROW 10
 		tk.Label(self.mainframe, text="Visualization Options:", font = "Helvetica 10 bold").grid(column=1, row=10, sticky=tk.E)
-		tk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=4, sticky=tk.W)
+		ttk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=4, sticky=tk.W)
 
 		# ROW 11
-		tk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=4, sticky=tk.W)
-		tk.Button(self.mainframe, text="Check Inputs and RUN", font = "Helvetica 12 bold",command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=11, sticky=tk.E)
+		ttk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=4, sticky=tk.W)
+		ttk.Button(self.mainframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=11, sticky=tk.E)
 
 		self.parent.bind("<Return>",self.checkInputsAndRun)
 
