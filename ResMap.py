@@ -12,27 +12,33 @@ This package is released under the Creative Commons Attribution-NonCommercial-No
 CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)
 
 Usage: 
-  ResMap.py [(--nogui INPUT)] [--vxSize=VXSIZE] 
-            [--pVal=PVAL] 
+  ResMap.py [(--noguiSingle INPUT)] [--vxSize=VXSIZE]
+            [--pVal=PVAL]
             [--minRes=MINRES] [--maxRes=MAXRES] [--stepRes=STEPRES]
             [--variance=VAR]
             [--maskVol=MASKVOL]
             [--vis2D] [--launchChimera] [--noiseDiag]
+  ResMap.py [(--noguiSplit INPUT1 INPUT2)] [--vxSize=VXSIZE]
+            [--pVal=PVAL]
+            [--minRes=MINRES] [--maxRes=MAXRES] [--stepRes=STEPRES]
+            [--maskVol=MASKVOL]
+            [--vis2D] [--launchChimera] [--noiseDiag]
 
-NOTE: INPUT and --vxSize are mandatory inputs to ResMap 
+NOTE: INPUT(s) and --vxSize are mandatory inputs to ResMap 
 
 Arguments:
-  INPUT               Input volume in MRC format
+  INPUT(s)            Input volume(s) in MRC format
 
 Options:
-  --nogui             Run ResMap in command-line mode
+  --noguiSingle       Run ResMap for Single Volumes in command-line mode
+  --noguiSplit       Run ResMap for Split Volumes in command-line mode
   --vxSize=VXSIZE     Voxel size of input map (A) [default: 0.0]
   --pVal=PVAL         P-value for likelihood ratio test [default: 0.05]
-  --minRes=MINRES     Minimum resolution (A) [default: 0.0]      -> algorithm will start at just above 2*vxSize
-  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0]      -> algorithm will stop at around 4*vxSize
-  --stepRes=STEPRES   Step size (A) [default: 1.0]               -> min 0.25A 
-  --variance=VAR      Noise Variance of input map [default: 0.0] -> [NOT RECOMMENDED]
-  --maskVol=MASKVOL   Mask volume                                -> ResMap will automatically compute a mask
+  --minRes=MINRES     Minimum resolution (A) [default: 0.0]       -> algorithm will start at just above 2*vxSize
+  --maxRes=MAXRES     Maximum resolution (A) [default: 0.0]       -> algorithm will stop at around 4*vxSize
+  --stepRes=STEPRES   Step size (A) [default: 1.0]                -> min 0.25A 
+  --variance=VAR      Noise Variance of input map [default: 0.0]  -> NOT RECOMMENDED
+  --maskVol=MASKVOL   Mask volume                                 -> ResMap will automatically compute a mask
   --vis2D             Output 2D visualization
   --launchChimera     Attempt to launch Chimera after execution
   --noiseDiag         Run and show noise diagnostics
@@ -502,11 +508,11 @@ class ResMapApp(object):
 if __name__ == '__main__':
 	
 	global version
-	version = "1.0.8"
+	version = "1.1.0"
 
 	args = docopt(__doc__, version=version)
 
-	if args['--nogui'] == False:
+	if args['--noguiSingle'] == False and args['--noguiSplit'] == False:
 
 		# Create root window and initiate GUI interface
 		root = tk.Tk()
@@ -515,14 +521,26 @@ if __name__ == '__main__':
 
 	else:
 
-		# INPUT
-		try:
-			data = MRC_Data(args['INPUT'],'ccp4')
-		except:
-			exit("The input volume (MRC/CCP4 format) could not be read.")
+		if args['--noguiSingle'] == True:
+			# INPUT
+			try:
+				data = MRC_Data(args['INPUT'],'ccp4')
+			except:
+				exit("The input volume (MRC/CCP4 format) could not be read.")
 
-		# inputFileName
-		inputFileName = os.path.normpath(os.path.join(os.getcwd(),args['INPUT']))
+			# inputFileName
+			inputFileName = os.path.normpath(os.path.join(os.getcwd(),args['INPUT']))
+		elif args['--noguiSplit'] == True:
+			# INPUT
+			try:
+				data1 = MRC_Data(args['INPUT1'],'ccp4')
+				data2 = MRC_Data(args['INPUT2'],'ccp4')
+			except:
+				exit("The input volumes (MRC/CCP4 format) could not be read.")
+
+			# inputFileName
+			inputFileName1 = os.path.normpath(os.path.join(os.getcwd(),args['INPUT1']))			
+			inputFileName2 = os.path.normpath(os.path.join(os.getcwd(),args['INPUT2']))	
 
 		# --vxSize
 		if args['--vxSize'] == '0.0':
@@ -573,13 +591,14 @@ if __name__ == '__main__':
 			exit("The step size (--stepRes) is too small.")			
 
 		# --variance
-		try:
-			variance = float(args['--variance'])
-		except:
-			exit("The noise variance (--variance) is not a valid floating point number.")
+		if args['--noguiSingle'] == True:	# only applicable in single volume case
+			try:
+				variance = float(args['--variance'])
+			except:
+				exit("The noise variance (--variance) is not a valid floating point number.")
 
-		if variance < 0.0:
-			exit("The noise variance (--variance) is a negative number.")		
+			if variance < 0.0:
+				exit("The noise variance (--variance) is a negative number.")		
 
 		# --maskVol
 		if args['--maskVol'] == None:
@@ -591,17 +610,36 @@ if __name__ == '__main__':
 				exit("The mask volume (MRC/CCP4 format) could not be read.")
 
 		# Call ResMap
-		ResMap_algorithm(
-				inputFileName    = inputFileName,
-				data             = data,
-				vxSize           = vxSize,
-				pValue           = pValue,
-				minRes           = minRes,
-				maxRes           = maxRes,
-				stepRes          = stepRes,
-				dataMask         = dataMask,
-				variance         = variance,
-				graphicalOutput  = args['--vis2D'],
-				chimeraLaunch    = args['--launchChimera'],
-				noiseDiagnostics = args['--noiseDiag']
-			 )
+		if args['--noguiSingle'] == True:
+			ResMap_algorithm(
+					inputFileName    = inputFileName,
+					data             = data,
+					vxSize           = vxSize,
+					pValue           = pValue,
+					minRes           = minRes,
+					maxRes           = maxRes,
+					stepRes          = stepRes,
+					dataMask         = dataMask,
+					variance         = variance,
+					graphicalOutput  = args['--vis2D'],
+					chimeraLaunch    = args['--launchChimera'],
+					noiseDiagnostics = args['--noiseDiag']
+				 )
+		elif args['--noguiSplit'] == True:
+			ResMap_algorithm(
+					inputFileName1   = inputFileName1,
+					inputFileName2   = inputFileName2,
+					data1            = data1,
+					data2            = data2,
+					vxSize           = vxSize,
+					pValue           = pValue,
+					minRes           = minRes,
+					maxRes           = maxRes,
+					stepRes          = stepRes,
+					dataMask         = dataMask,
+					graphicalOutput  = args['--vis2D'],
+					chimeraLaunch    = args['--launchChimera'],
+					noiseDiagnostics = args['--noiseDiag']
+				 )
+		else:
+			print "\n\nSomething somewhere went terribly wrong.\n\n"
