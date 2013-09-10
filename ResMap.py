@@ -283,7 +283,14 @@ class ResMapApp(object):
 		options =  {}
 		options['title'] = "ResMap - Select data file"
 		fname = askopenfilenames(**options)
-		if fname:
+		if isinstance( fname, tuple ):
+			try:
+				fileNameStringVar1.set(fname[0])
+				fileNameStringVar2.set(fname[1])
+			except:                     # <- naked except is a bad idea
+				showerror("Open Source Files", "Failed to read files\n'%s'" % fname)
+			return 
+		if isinstance( fname, unicode ):
 			try:
 				fileNameStringVar1.set(fname.partition(' ')[0])
 				fileNameStringVar2.set(fname.partition(' ')[2])
