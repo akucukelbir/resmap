@@ -87,21 +87,31 @@ def ResMap_algorithm(**kwargs):
 	print '\n\n= Reading Input Parameters'
 	tStart = time()
 
-	inputFileName   = kwargs.get('inputFileName','')
-	dataMRC         = kwargs.get('data',     0)
-	vxSize          = kwargs.get('vxSize',   1.0 )
-	pValue          = kwargs.get('pValue',   0.05)
-	minRes          = kwargs.get('minRes',   0.0 ) 
-	maxRes          = kwargs.get('maxRes',   0.0 )
-	stepRes         = kwargs.get('stepRes',  1.0 ) 
-	dataMask        = kwargs.get('dataMask', 0)
-	variance        = kwargs.get('variance', 0.0)
-	graphicalOutput = bool(kwargs.get('graphicalOutput', False))
-	chimeraLaunch   = bool(kwargs.get('chimeraLaunch', False))
+	inputFileName    = kwargs.get('inputFileName','')
+	inputFileName1   = kwargs.get('inputFileName1','')
+	inputFileName2   = kwargs.get('inputFileName2','')
+	dataMRC          = kwargs.get('data', 0)
+	dataMRC1         = kwargs.get('data1',0)	
+	dataMRC2         = kwargs.get('data2',0)
+		
+	vxSize           = kwargs.get('vxSize',   1.0 )
+	pValue           = kwargs.get('pValue',   0.05)
+	minRes           = kwargs.get('minRes',   0.0 ) 
+	maxRes           = kwargs.get('maxRes',   0.0 )
+	stepRes          = kwargs.get('stepRes',  1.0 ) 
+	dataMask         = kwargs.get('dataMask', 0)
+	variance         = kwargs.get('variance', 0.0)
+	
+	graphicalOutput  = bool(kwargs.get('graphicalOutput', False))
+	chimeraLaunch    = bool(kwargs.get('chimeraLaunch', False))
+	noiseDiagnostics = bool(kwargs.get('noiseDiagnostics', False))
  
 	# Extract volume from MRC class
 	data     = dataMRC.matrix
 	data     = data-np.mean(data)
+
+	# Grab the volume size (assumed to be a cube)
+	n = data.shape[0]
 
 	m, s   = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -109,8 +119,34 @@ def ResMap_algorithm(**kwargs):
 	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
 	tStart = time()
 
-	(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
-	LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+	if n > 64:
+		mid = int(n/2)
+
+		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data[mid-31:mid+32, mid-31:mid+32, mid-31:mid+32])
+
+		fig = plt.figure(1)
+		ax = fig.add_subplot(111)
+		p = ax.plot(dataPowerSpectrum)
+		plt.yscale('log')
+		plt.grid(linestyle='dotted')
+		plt.ylabel('Power Spectrum (|f|^2)')
+		plt.xlabel('Frequency')
+		plt.show()
+
+		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+	else:
+		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+
+		fig = plt.figure(1)
+		ax = fig.add_subplot(111)
+		p = ax.plot(dataPowerSpectrum)
+		plt.yscale('log')
+		plt.grid(linestyle='dotted')
+		plt.ylabel('Power Spectrum (|f|^2)')
+		plt.xlabel('Frequency')
+		plt.show()
+
+		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
 
 	if LPFtest['outcome']:
 		print ( "=======================================================================\n"
@@ -133,9 +169,6 @@ def ResMap_algorithm(**kwargs):
 	else:
 		print "  The volume does not appear to be low-pass filtered. Great!\n"
 		LPFfactor = 0
-
-	# Grab the volume size (assumed to be a cube)
-	n = data.shape[0]
 
 	# Calculate min res
 	if minRes <= (2.2*vxSize):

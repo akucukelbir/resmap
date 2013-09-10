@@ -53,6 +53,9 @@ def sphericalAverage(image, center=None, binsize=1.0):
 						-n/2:n/2:complex(0,n) ]
 	r       = np.array(np.sqrt(x**2 + y**2 + z**2), dtype='float32')
 
+	Routside        = (R >= n/2 - 2)
+	image[Routside] = 0.0
+
 	# Calculate the indices from the image
 	# (x,y,z) = np.indices(image.shape)
 	#

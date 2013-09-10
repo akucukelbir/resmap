@@ -277,13 +277,25 @@ def displayPowerSpectrum(*args):
 def isPowerSpectrumLPF(dataPowerSpectrum):
 
 	# Calculated derivative of log of dataPowerSpectrum
-	diffLogPowerSpectrum = np.diff(np.log(dataPowerSpectrum))
+	diffLogPowerSpectrum = (np.diff(np.diff(np.log(dataPowerSpectrum))))
 
 	# Find positive peaks in the derivative
 	peakInd = signal.find_peaks_cwt(-1*diffLogPowerSpectrum, np.arange(1,10), min_snr=2)
 
 	# Pick out the maximum radius index where a peak occurs
 	maxInd = np.max(peakInd)
+
+	print peakInd
+	print maxInd
+
+	fig = plt.figure(1)
+	ax = fig.add_subplot(111)
+	p = ax.plot(-1*diffLogPowerSpectrum)
+	# plt.yscale('log')
+	plt.grid(linestyle='dotted')
+	plt.ylabel('Power Spectrum (|f|^2)')
+	plt.xlabel('Frequency')
+	plt.show()
 
 	# Calculate the mean and variance of the derivative of the power spectrum beyond maxInd
 	m, v   = np.mean(diffLogPowerSpectrum[maxInd+3:]), np.var(diffLogPowerSpectrum[maxInd+3:])
