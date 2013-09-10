@@ -17,7 +17,7 @@ Usage:
             [--minRes=MINRES] [--maxRes=MAXRES] [--stepRes=STEPRES]
             [--variance=VAR]
             [--maskVol=MASKVOL]
-            [--vis2D] [--launchChimera]
+            [--vis2D] [--launchChimera] [--noiseDiag]
 
 NOTE: INPUT and --vxSize are mandatory inputs to ResMap 
 
@@ -35,6 +35,7 @@ Options:
   --maskVol=MASKVOL   Mask volume                                -> ResMap will automatically compute a mask
   --vis2D             Output 2D visualization
   --launchChimera     Attempt to launch Chimera after execution
+  --noiseDiag         Run and show noise diagnostics
   -h --help           Show this help message and exit
   --version           Show version. 
 
@@ -42,11 +43,11 @@ Options:
 
 import Tkinter as tk
 from tkFileDialog import askopenfilename
+from tkFileDialog import askopenfilenames
 from tkMessageBox import showerror
 from tkMessageBox import showinfo
 
 import ttk
-# from ttk import Notebook 
 
 import os
 from docopt import docopt
@@ -100,6 +101,25 @@ class ResMapApp(object):
 		self.nb.enable_traversal() # allow for keyboard bindings
 		self.nb.pack()
 
+
+		## GLOBAL VARIABLES FOR BOTH NOTEBOOK FRAMES
+		# Create Tk variables
+		self.graphicalOutput  = tk.IntVar()
+		self.chimeraLaunch    = tk.IntVar()
+		self.noiseDiagnostics = tk.IntVar()
+		self.volFileName      = tk.StringVar()
+		self.volFileName1     = tk.StringVar()
+		self.volFileName2     = tk.StringVar()				
+		self.voxelSize        = tk.StringVar()
+		self.alphaValue       = tk.StringVar(value="0.05")
+		self.minRes           = tk.StringVar(value="0.0")
+		self.maxRes           = tk.StringVar(value="0.0")
+		self.stepRes          = tk.StringVar(value="1.0")
+		self.variance         = tk.StringVar(value="0.0")
+		self.maskFileName     = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
+
+
+		## SINGLE VOLUME FRAME
 		# Create single volume input frame 
 		self.mainframe = ttk.Frame(self.nb)
 
@@ -109,44 +129,17 @@ class ResMapApp(object):
 
 		self.nb.add(self.mainframe, text='Single Volume Input', underline=0, padding=10)
 
-		# Create split volume input frame 
-		self.splitframe = tk.Frame(self.nb)
-
-		self.splitframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
-		self.splitframe.columnconfigure(0, weight=1)
-		self.splitframe.rowconfigure(   0, weight=1)
-
-		self.nb.add(self.splitframe, text='Split Volume Input', underline=0, padding=10)
-
-		# Create Tk variables
-		self.graphicalOutput = tk.IntVar()
-		self.chimeraLaunch   = tk.IntVar()
-		self.volFileName     = tk.StringVar()
-		self.voxelSize       = tk.StringVar()
-		self.alphaValue      = tk.StringVar(value="0.05")
-		self.minRes          = tk.StringVar(value="0.0")
-		self.maxRes          = tk.StringVar(value="0.0")
-		self.stepRes         = tk.StringVar(value="1.0")
-		self.variance        = tk.StringVar(value="0.0")
-		self.maskFileName    = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
-
 		# ROW 0
 		ttk.Label(self.mainframe, text="Required Inputs", font = "Helvetica 14 bold").grid(column=1, row=0, columnspan=10, sticky=tk.W)
 
 		# ROW 1
 		ttk.Label(self.mainframe, text="Volume:").grid(column=1, row=1, sticky=tk.E)
-
-		volFileName_entry = ttk.Entry(self.mainframe, width=100, textvariable=self.volFileName)
-		volFileName_entry.grid(column=2, columnspan=10, row=1, sticky=(tk.W, tk.E))
-
-		ttk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.volFileName))).grid(column=12, row=1, sticky=tk.W)
+		ttk.Entry(self.mainframe, width=100, textvariable=self.volFileName).grid(column=2, columnspan=10, row=1, sticky=(tk.W, tk.E))
+		ttk.Button(self.mainframe, text="Load", command=(lambda: self.load_file(self.volFileName))).grid(column=12, row=1, sticky=tk.W)
 
 		# ROW 2
 		ttk.Label(self.mainframe, text="Voxel Size:").grid(column=1, row=2, sticky=tk.E)
-
-		voxelSize_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.voxelSize)
-		voxelSize_entry.grid(column=2, row=2, sticky=tk.W)
-
+		ttk.Entry(self.mainframe, width=5, textvariable=self.voxelSize).grid(column=2, row=2, sticky=tk.W)		
 		ttk.Label(self.mainframe, text="in Angstroms (A/voxel)").grid(column=3, row=2, sticky=tk.W)
 
 		# ROW 3
@@ -154,65 +147,125 @@ class ResMapApp(object):
 
 		# ROW 4
 		ttk.Label(self.mainframe, text="Confidence Level:").grid(column=1, row=4, sticky=tk.E)
-
-		alphaValue_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.alphaValue)
-		alphaValue_entry.grid(column=2, row=4, sticky=tk.W)
-
+		ttk.Entry(self.mainframe, width=5, textvariable=self.alphaValue).grid(column=2, row=4, sticky=tk.W)
 		ttk.Label(self.mainframe, text="usually between [0.01, 0.05]").grid(column=3, row=4, sticky=tk.W)
 
 		# ROW 5
 		ttk.Label(self.mainframe, text="Min Resolution:").grid(column=1, row=5, sticky=tk.E)
-
-		minRes_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.minRes)
-		minRes_entry.grid(column=2, row=5, sticky=tk.W)
-
+		ttk.Entry(self.mainframe, width=5, textvariable=self.minRes).grid(column=2, row=5, sticky=tk.W)		
 		ttk.Label(self.mainframe, text="in Angstroms (default: algorithm will start at just above 2*voxelSize)").grid(column=3, row=5, sticky=tk.W)
 
 		# ROW 6
 		ttk.Label(self.mainframe, text="Max Resolution:").grid(column=1, row=6, sticky=tk.E)
-
-		maxRes_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.maxRes)
-		maxRes_entry.grid(column=2, row=6, sticky=tk.W)
-
+		ttk.Entry(self.mainframe, width=5, textvariable=self.maxRes).grid(column=2, row=6, sticky=tk.W)
 		ttk.Label(self.mainframe, text="in Angstroms (default: algorithm will stop at around 4*voxelSize)").grid(column=3, row=6, sticky=tk.W)
 
 		# ROW 7
 		ttk.Label(self.mainframe, text="Step Size:").grid(column=1, row=7, sticky=tk.E)
-
-		stepRes_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.stepRes)
-		stepRes_entry.grid(column=2, row=7, sticky=tk.W)
-
+		ttk.Entry(self.mainframe, width=5, textvariable=self.stepRes).grid(column=2, row=7, sticky=tk.W)
 		ttk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=7, sticky=tk.W)
 
 		# ROW 8
 		ttk.Label(self.mainframe, text="Noise Variance:").grid(column=1, row=8, sticky=tk.E)
-
-		variance_entry = ttk.Entry(self.mainframe, width=5, textvariable=self.variance)
-		variance_entry.grid(column=2, row=8, sticky=tk.W)
-
-		ttk.Label(self.mainframe, text="noise variance of input map [NOT RECOMMENDED: ResMap will assume the input map has already been pre-whitened]\n(default: ResMap will pre-whiten and automatically compute the variance from the background)").grid(column=3, row=8, sticky=tk.W)		
+		ttk.Entry(self.mainframe, width=5, textvariable=self.variance).grid(column=2, row=8, sticky=tk.W)
+		ttk.Label(self.mainframe, text="noise variance of input map.\n[NOT RECOMMENDED: ResMap will assume the input map has already been pre-whitened]").grid(column=3, row=8, columnspan=9, sticky=tk.W)		
 
 		# ROW 9
 		ttk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
-
-		maskFileName_entry = ttk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, foreground="gray")
-		maskFileName_entry.grid(column=2, columnspan=10, row=9, sticky=(tk.W, tk.E))
-
-		ttk.Button(self.mainframe, text="Load File", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
+		ttk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, foreground="gray").grid(column=2, columnspan=10, row=9, sticky=(tk.W, tk.E))
+		ttk.Button(self.mainframe, text="Load", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
 
 		# ROW 10
 		ttk.Label(self.mainframe, text="Visualization Options:").grid(column=1, row=10, sticky=tk.E)
-		ttk.Checkbutton(self.mainframe, text="2D Graphical Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=4, sticky=tk.W)
+		ttk.Checkbutton(self.mainframe, text="2D Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=2, sticky=tk.W)
 
 		# ROW 11
-		ttk.Checkbutton(self.mainframe, text="3D Graphical Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=4, sticky=tk.W)
-		ttk.Button(self.mainframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=11, sticky=tk.E)
+		ttk.Checkbutton(self.mainframe, text="3D Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=2 , sticky=tk.W)
+
+		# ROW 12
+		ttk.Label(self.mainframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
+		ttk.Checkbutton(self.mainframe, text="Display Noise Diagnostics (ResMap)", variable=self.noiseDiagnostics).grid(column=2, row=12, columnspan=2, sticky=tk.W)
+
+		# ROW 13
+		ttk.Button(self.mainframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=13, sticky=tk.E)
 
 		self.parent.bind("<Return>",self.checkInputsAndRun)
 
 		# Setup grid with padding
 		for child in self.mainframe.winfo_children(): child.grid_configure(padx=5, pady=5)
-		volFileName_entry.focus()		
+
+
+		## SPLIT VOLUME FRAME
+		# Create split volume input frame 
+		self.splitframe = ttk.Frame(self.nb)
+
+		self.splitframe.grid(column=0, row=0, sticky=(tk.N, tk.W, tk.E, tk.S))
+		self.splitframe.columnconfigure(0, weight=1)
+		self.splitframe.rowconfigure(   0, weight=1)
+
+		self.nb.add(self.splitframe, text='Split Volume Input', underline=0, padding=10)
+
+		# ROW 0
+		ttk.Label(self.splitframe, text="Required Inputs", font = "Helvetica 14 bold").grid(column=1, row=0, columnspan=10, sticky=tk.W)
+
+		# ROW 1
+		ttk.Label(self.splitframe, text="Split Volume 1:").grid(column=1, row=1, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=100, textvariable=self.volFileName1).grid(column=2, columnspan=10, row=1, sticky=(tk.W, tk.E))
+		
+		# ROW 2
+		ttk.Label(self.splitframe, text="Split Volume 2:").grid(column=1, row=2, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=100, textvariable=self.volFileName2).grid(column=2, columnspan=10, row=2, sticky=(tk.W, tk.E))
+		ttk.Button(self.splitframe, text="Load Both", command=(lambda: self.load_files(self.volFileName1, self.volFileName2))).grid(column=12, row=2, sticky=tk.W)
+
+		# ROW 3
+		ttk.Label(self.splitframe, text="Voxel Size:").grid(column=1, row=3, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.voxelSize).grid(column=2, row=3, sticky=tk.W)
+		ttk.Label(self.splitframe, text="in Angstroms (A/voxel)").grid(column=3, row=3, sticky=tk.W)
+
+		# ROW 4
+		ttk.Label(self.splitframe, text="Optional Inputs", font = "Helvetica 14 bold").grid(column=1, row=4, columnspan=8, sticky=tk.W)
+
+		# ROW 5
+		ttk.Label(self.splitframe, text="Confidence Level:").grid(column=1, row=5, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.alphaValue).grid(column=2, row=5, sticky=tk.W)
+		ttk.Label(self.splitframe, text="usually between [0.01, 0.05]").grid(column=3, row=5, sticky=tk.W)
+
+		# ROW 6
+		ttk.Label(self.splitframe, text="Min Resolution:").grid(column=1, row=6, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.minRes).grid(column=2, row=6, sticky=tk.W)		
+		ttk.Label(self.splitframe, text="in Angstroms (default: algorithm will start at just above 2*voxelSize)").grid(column=3, row=6, sticky=tk.W)
+
+		# ROW 7
+		ttk.Label(self.splitframe, text="Max Resolution:").grid(column=1, row=7, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.maxRes).grid(column=2, row=7, sticky=tk.W)
+		ttk.Label(self.splitframe, text="in Angstroms (default: algorithm will stop at around 4*voxelSize)").grid(column=3, row=7, sticky=tk.W)
+
+		# ROW 8
+		ttk.Label(self.splitframe, text="Step Size:").grid(column=1, row=8, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.stepRes).grid(column=2, row=8, sticky=tk.W)
+		ttk.Label(self.splitframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=8, sticky=tk.W)
+
+		# ROW 9
+		ttk.Label(self.splitframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=100, textvariable=self.maskFileName, foreground="gray").grid(column=2, columnspan=10, row=9, sticky=(tk.W, tk.E))
+		ttk.Button(self.splitframe, text="Load", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
+
+		# ROW 10
+		ttk.Label(self.splitframe, text="Visualization Options:").grid(column=1, row=10, sticky=tk.E)
+		ttk.Checkbutton(self.splitframe, text="2D Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=2, sticky=tk.W)
+
+		# ROW 11
+		ttk.Checkbutton(self.splitframe, text="3D Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=2, sticky=tk.W)
+
+		# ROW 12
+		ttk.Label(self.splitframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
+		ttk.Checkbutton(self.splitframe, text="Display Noise Diagnostics (ResMap)", variable=self.noiseDiagnostics).grid(column=2, row=12, columnspan=2, sticky=tk.W)
+
+		# ROW 13
+		ttk.Button(self.splitframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=13, sticky=tk.E)
+
+		# Setup grid with padding
+		for child in self.splitframe.winfo_children(): child.grid_configure(padx=5, pady=5)	
 
 	def load_file(self, fileNameStringVar):
 		options =  {}
@@ -226,19 +279,61 @@ class ResMapApp(object):
 				showerror("Open Source File", "Failed to read file\n'%s'" % fname)
 			return 
 
+	def load_files(self, fileNameStringVar1, fileNameStringVar2):
+		options =  {}
+		options['title'] = "ResMap - Select data file"
+		fname = askopenfilenames(**options)
+		if fname:
+			try:
+				fileNameStringVar1.set(fname.partition(' ')[0])
+				fileNameStringVar2.set(fname.partition(' ')[2])
+			except:                     # <- naked except is a bad idea
+				showerror("Open Source Files", "Failed to read files\n'%s'" % fname)
+			return 
+
 	def checkInputsAndRun(self,*args):
 
-		# Check volume file name and try loading MRC file
-		if self.volFileName.get() == "":
-			showerror("Check Inputs", "'volFileName' is not set. Please select a MRC volume to analyze.")
-			return
+		# Find which tab the button was pressed from
+		if self.nb.index(self.nb.select()) == 0:
+			singleVolumeTab = True
 		else:
-			try:
-				inputFileName = self.volFileName.get()
-				data = MRC_Data(inputFileName,'ccp4')
-			except:
-				showerror("Check Inputs", "The MRC volume could not be read.")
+			singleVolumeTab = False
+
+		if singleVolumeTab:
+			# Check single volume file name and try loading MRC file
+			if self.volFileName.get() == "":
+				showerror("Check Inputs", "'volFileName' is not set. Please select a MRC volume to analyze.")
 				return
+			else:
+				try:
+					inputFileName = self.volFileName.get()
+					data = MRC_Data(inputFileName,'ccp4')
+				except:
+					showerror("Check Inputs", "The MRC volume could not be read.")
+					return
+		else:
+			# Check split volume file names and try loading MRC files
+			if self.volFileName1.get() == "":
+				showerror("Check Inputs", "'volFileName1' is not set. Please select a MRC volume to analyze.")
+				return
+			else:
+				try:
+					inputFileName1 = self.volFileName1.get()
+					data1 = MRC_Data(inputFileName1,'ccp4')
+				except:
+					showerror("Check Inputs", "The MRC volume could not be read.")
+					return
+
+			if self.volFileName2.get() == "":
+				showerror("Check Inputs", "'volFileName2' is not set. Please select a MRC volume to analyze.")
+				return
+			else:
+				try:
+					inputFileName2 = self.volFileName2.get()
+					data2 = MRC_Data(inputFileName2,'ccp4')
+				except:
+					showerror("Check Inputs", "The MRC volume could not be read.")
+					return					
 
 		# Check voxel size
 		if self.voxelSize.get() == "":
@@ -315,20 +410,21 @@ class ResMapApp(object):
 				showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.25 in Angstroms.")
 				return	
 
-		# Check noise variance
-		if self.variance.get() == "":
-			showerror("Check Inputs", "'variance' is not set. Please input a valid noise variance value.")
-			return
-		else:
-			try:
-				variance = float(self.variance.get())
-			except ValueError:
-				showerror("Check Inputs", "'variance' is not a valid number. Please input a valid nois variance value.")
+		if singleVolumeTab:
+			# Check noise variance
+			if self.variance.get() == "":
+				showerror("Check Inputs", "'variance' is not set. Please input a valid noise variance value.")
 				return
+			else:
+				try:
+					variance = float(self.variance.get())
+				except ValueError:
+					showerror("Check Inputs", "'variance' is not a valid number. Please input a valid nois variance value.")
+					return
 
-			if variance < 0.0:
-				showerror("Check Inputs", "'variance' is too small. Please input a noise variance greater than 0.0.")
-				return					
+				if variance < 0.0:
+					showerror("Check Inputs", "'variance' is too small. Please input a noise variance greater than 0.0.")
+					return					
 
 		# Check mask file name and try loading MRC file
 		if self.maskFileName.get() == "":
@@ -349,19 +445,37 @@ class ResMapApp(object):
 		root.destroy()
 
 		# Call ResMap
-		ResMap_algorithm(
-				inputFileName   = inputFileName,
-				data            = data,
-				vxSize          = vxSize,
-				pValue          = pValue,
-				minRes          = minRes,
-				maxRes          = maxRes,
-				stepRes         = stepRes,
-				dataMask        = dataMask,
-				variance        = variance,
-				graphicalOutput = self.graphicalOutput.get(),
-				chimeraLaunch   = self.chimeraLaunch.get(),
-			 )
+		if singleVolumeTab:
+			ResMap_algorithm(
+					inputFileName    = inputFileName,
+					data             = data,
+					vxSize           = vxSize,
+					pValue           = pValue,
+					minRes           = minRes,
+					maxRes           = maxRes,
+					stepRes          = stepRes,
+					dataMask         = dataMask,
+					variance         = variance,
+					graphicalOutput  = self.graphicalOutput.get(),
+					chimeraLaunch    = self.chimeraLaunch.get(),
+					noiseDiagnostics = self.noiseDiagnostics.get(),
+				 )
+		else:
+			ResMap_algorithm(
+					inputFileName1   = inputFileName1,
+					inputFileName2   = inputFileName2,
+					data1            = data1,
+					data2            = data2,
+					vxSize           = vxSize,
+					pValue           = pValue,
+					minRes           = minRes,
+					maxRes           = maxRes,
+					stepRes          = stepRes,
+					dataMask         = dataMask,
+					graphicalOutput  = self.graphicalOutput.get(),
+					chimeraLaunch    = self.chimeraLaunch.get(),
+					noiseDiagnostics = self.noiseDiagnostics.get(),
+				 )
 
 		raw_input("\n== DONE! ==\n\nPress any key or close window to EXIT.\n\n")
 
@@ -471,15 +585,16 @@ if __name__ == '__main__':
 
 		# Call ResMap
 		ResMap_algorithm(
-				inputFileName   = inputFileName,
-				data            = data,
-				vxSize          = vxSize,
-				pValue          = pValue,
-				minRes          = minRes,
-				maxRes          = maxRes,
-				stepRes         = stepRes,
-				dataMask        = dataMask,
-				variance        = variance,
-				graphicalOutput = args['--vis2D'],
-				chimeraLaunch   = args['--launchChimera']
+				inputFileName    = inputFileName,
+				data             = data,
+				vxSize           = vxSize,
+				pValue           = pValue,
+				minRes           = minRes,
+				maxRes           = maxRes,
+				stepRes          = stepRes,
+				dataMask         = dataMask,
+				variance         = variance,
+				graphicalOutput  = args['--vis2D'],
+				chimeraLaunch    = args['--launchChimera'],
+				noiseDiagnostics = args['--noiseDiag']
 			 )
