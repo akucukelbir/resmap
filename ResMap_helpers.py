@@ -18,6 +18,14 @@ Please see individual functions for attributions.
 from scipy.stats import norm
 import numpy as np
 
+def createRmatrix(n):
+
+	# Create R matrix
+	[x,y,z]   = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
+								    -n/2:n/2:complex(0,n),
+								    -n/2:n/2:complex(0,n) ], dtype='float32')
+	return np.array(np.sqrt(x**2 + y**2 + z**2), 	         dtype='float32')
+
 def array_outer_product( A, B, result=None ):
 	''' 
 	Compute the outer-product in the final two dimensions of the given arrays.

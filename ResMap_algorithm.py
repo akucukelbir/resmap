@@ -210,10 +210,8 @@ def ResMap_algorithm(**kwargs):
 
 	# We assume the particle is at the center of the volume
 	# Create spherical mask
-	[x,y,z] = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
-								  -n/2:n/2:complex(0,n),
-								  -n/2:n/2:complex(0,n) ], dtype='float32')
-	R       = np.array(np.sqrt(x**2 + y**2 + z**2), 	   dtype='float32')
+	R = createRmatrix(n)
+	print(id(R))
 	Rinside = R < n/2 - 1
 
 	# Check to see if mask volume was already provided
@@ -237,90 +235,237 @@ def ResMap_algorithm(**kwargs):
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	# PRE-WHITENING
+
+	# We take a first shot at ramping the spectrum up or down beyond 10A
+	oldElbowAngstrom = 0
+	newElbowAngstrom = max(10,2.1*vxSize)
+
+	# Sometimes the ramping is too much, so we allow the user to adjust it
+	oldRampWeight = 0.0
+	newRampWeight = 1.0
+
 	if variance == 0.0:
 		estimateVarianceFromBackground = True
 
-		print '\n= Computing Soft Mask Separating Particle from Background'
-		tStart      = time()
+		if n > subVolLPF:
 
-		# Dilate the mask a bit so that we don't seep into the particle when we blur it later
-		boxElement  = np.ones([5, 5, 5])
-		dilatedMask = ndimage.morphology.binary_dilation(dataMask, structure=boxElement, iterations=3)
-		dilatedMask = np.logical_and(dilatedMask, Rinside)
+			print ( "=======================================================================\n"
+					"|                                                                     |\n"
+					"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
+					"|                                                                     |\n"
+					"|              The volume is quite large ( >128 voxels).              |\n"
+					"|                                                                     |\n"					
+					"|          ResMap will run its pre-whitening on the largest           |\n"
+					"|     cube it can fit within the particle and in the background.      |\n"		
+					"|                                                                     |\n"
+					"=======================================================================\n")
+			
+			print '\n= Computing The Largest Cube Within the Particle'
+			tStart = time()
 
-		# Blur the mask
-		softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n)*0.02)
+			dataMaskDistance = ndimage.morphology.distance_transform_cdt(dataMask, metric='taxicab')
 
-		# Get the background
-		dataBG      = np.multiply(data,softBGmask)
-		del boxElement, dataMask, dilatedMask
+			m, s   = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-		m, s        = divmod(time() - tStart, 60)
-		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)		
+			print '\n= Computing The Largest Cube in the Background'
+			tStart = time()
+			
+			dataOutside         = np.logical_and(np.logical_not(dataMask),Rinside)
+			dataOutsideDistance = ndimage.morphology.distance_transform_cdt(dataOutside, metric='taxicab')
 
-		print '\n= Calculating Spherically Averaged Power Spectra'
-		tStart    = time()
+			m, s   = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
 
-		# Calculate spectrum of input volume only if downsampled, otherwise use previous computation
-		if LPFfactor != 0.0 or n > subVolLPF:
+			print '\n= Extracting Cubes and Calculating Spherically Averaged Power Spectra'
+			tStart    = time()
+
+			# Calculate the largest box size that can be fit both inside and oustide the particle
+			widthBox     = np.min((np.max(dataMaskDistance), np.max(dataOutsideDistance)))
+			halfWidthBox = np.floor(widthBox/2)
+			cubeSize     = 2*halfWidthBox
+
+			# Extract a cube from inside the particle
+			insideBox    = np.unravel_index(np.argmax(dataMaskDistance),(n,n,n))
+			cubeInside   = data[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
+								insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
+								insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];
+
+			# Extract a cube from outside the particle
+			outsideBox   = np.unravel_index(np.argmax(dataOutsideDistance),(n,n,n))
+			cubeOutside  = data[outsideBox[0]-halfWidthBox:outsideBox[0]+halfWidthBox,
+								outsideBox[1]-halfWidthBox:outsideBox[1]+halfWidthBox,
+								outsideBox[2]-halfWidthBox:outsideBox[2]+halfWidthBox ];	
+
+			# Create a hamming window														
+			hammingWindow1D = signal.hamming(cubeSize)
+			hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
+			hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
+
+			# Multiply both cubes by the hamming window
+			cubeInside      = np.multiply(cubeInside, hammingWindow3D)
+			cubeOutside     = np.multiply(cubeOutside,hammingWindow3D)
+
+			# Calculate spectrum of inside volume
+			(dataF,   dataSpect)   = calculatePowerSpectrum(cubeInside)
+
+			# Calculate spectrum of outside volume
+			(dataBGF, dataBGSpect) = calculatePowerSpectrum(cubeOutside)
+
+			del hammingWindow1D, hammingWindow2D, hammingWindow3D
+
+			m, s   = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)					
+
+			#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
+			# 	This loop will stop when the user does NOT change the elbow in the interface.
+			#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
+			while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
+
+				preWhiteningResult = preWhitenCube( n = cubeSize,			
+										vxSize        = vxSize,
+										elbowAngstrom = newElbowAngstrom,
+										rampWeight    = newRampWeight,
+										dataF         = dataF,
+										dataBGF       = dataBGF,
+										dataBGSpect   = dataBGSpect)
+
+				cubeInsidePW = preWhiteningResult['dataPW']
+				
+				oldElbowAngstrom = newElbowAngstrom
+				oldRampWeight    = newRampWeight
+
+				newElbowAngstrom, newRampWeight = displayPreWhitening(
+									elbowAngstrom = oldElbowAngstrom,
+									rampWeight    = oldRampWeight,
+									dataSpect     = dataSpect,
+									dataBGSpect   = dataBGSpect,
+									peval         = preWhiteningResult['peval'],
+									dataPWSpect   = preWhiteningResult['dataPWSpect'],
+									dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
+									vxSize 		  = vxSize,
+									dataSlice     = cubeInside[int(cubeSize/2),:,:], 
+									dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
+									)
+
+			# Apply the pre-whitening filter on the full-sized map
 			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
 
-		# Calculate spectrum of background volume
-		(dataBGF, dataBGSpect) = calculatePowerSpectrum(dataBG)
-		del dataBG, dataBGF
+			R = createRmatrix(n)
+			print(id(R))
 
-		m, s      = divmod(time() - tStart, 60)
-		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+			vminData, vmaxData = np.min(R), np.max(R)
+			ax1.imshow(R[(1*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax2.imshow(R[(2*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax3.imshow(R[(3*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 
-		# Usually b-factor sharpening has gone awry beyond about 10A
-		# therefore we take a first shot of ramping the spectrum up or down beyond 10A
-		oldElbowAngstrom = 0
-		newElbowAngstrom = max(10,2.1*vxSize)
+			pwFilterFinal = createPreWhiteningFilterFinal(	n = n,
+												spectrum      = dataPowerSpectrum,
+												pcoef         = preWhiteningResult['pcoef'],
+												elbowAngstrom = newElbowAngstrom,
+												rampWeight    = newRampWeight,
+												vxSize        = vxSize)
 
-		# Sometimes the ramping is too much, so allow the user to adjust it down
-		oldRampWeight = 0.0
-		newRampWeight = 1.0
+			dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataF))))
 
-		#
-		#   While the user changes the elbow in the Pre-Whitening Interface, repeat the pre-whitening.
-		#
-		# 	This loop will stop when the user does NOT change the elbow in the interface.
-		#
-		#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
-		#
-		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
+			# Plots
+			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+			vminData, vmaxData = np.min(data), np.max(data)
+			ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax2.imshow(data[(4*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax3.imshow(data[(5*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")	
 
-			preWhiteningResult = preWhitenVolume(x,y,z,				
-									elbowAngstrom = newElbowAngstrom,
+			f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
+			vminDataPW, vmaxDataPW = np.min(dataPW), np.max(dataPW)
+			ax21.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax22.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax23.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax24.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+
+			plt.show()			
+
+		else:
+
+			print ( "=======================================================================\n"
+					"|                                                                     |\n"
+					"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
+					"|                                                                     |\n"
+					"|           The volume is of reasonable size ( <128 voxels).          |\n"
+					"|                                                                     |\n"					
+					"|        ResMap will run its pre-whitening on the whole volume.       |\n"
+					"|                                                                     |\n"
+					"=======================================================================\n")			
+
+			print '\n= Computing Soft Mask Separating Particle from Background'
+			tStart      = time()
+
+			# Dilate the mask a bit so that we don't seep into the particle when we blur it later
+			boxElement  = np.ones([5, 5, 5])
+			dilatedMask = ndimage.morphology.binary_dilation(dataMask, structure=boxElement, iterations=3)
+			dilatedMask = np.logical_and(dilatedMask, Rinside)
+
+			# Blur the mask
+			softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n)*0.02)
+
+			# Get the background
+			dataBG      = np.multiply(data,softBGmask)
+			del boxElement, dataMask, dilatedMask
+
+			m, s        = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)		
+
+			print '\n= Calculating Spherically Averaged Power Spectra'
+			tStart    = time()
+
+			# Calculate spectrum of input volume only if downsampled, otherwise use previous computation
+			if LPFfactor != 0.0 or n > subVolLPF:
+				(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+
+			# Calculate spectrum of background volume
+			(dataBGF, dataBGSpect) = calculatePowerSpectrum(dataBG)
+			del dataBG, dataBGF
+
+			m, s      = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+			#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
+			# 	This loop will stop when the user does NOT change the elbow in the interface.
+			#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
+			while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
+
+				preWhiteningResult = preWhitenVolumeSoftBG(n = n,			
+										elbowAngstrom = newElbowAngstrom,
+										dataBGSpect   = dataBGSpect,
+										dataF         = dataF,
+										softBGmask    = softBGmask,
+										vxSize        = vxSize,
+										rampWeight    = newRampWeight)
+
+				dataPW = preWhiteningResult['dataPW']
+				
+				oldElbowAngstrom = newElbowAngstrom
+				oldRampWeight    = newRampWeight
+
+				newElbowAngstrom, newRampWeight = displayPreWhitening(
+									elbowAngstrom = oldElbowAngstrom,
+									rampWeight    = oldRampWeight,
+									dataSpect     = dataPowerSpectrum,
 									dataBGSpect   = dataBGSpect,
-									dataF         = dataF,
-									softBGmask    = softBGmask,
-									vxSize        = vxSize,
-									rampWeight    = newRampWeight)
+									peval         = preWhiteningResult['peval'],
+									dataPWSpect   = preWhiteningResult['dataPWSpect'],
+									dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
+									vxSize 		  = vxSize,
+									dataSlice     = data[int(n/2),:,:], 
+									dataPWSlice   = dataPW[int(n/2),:,:]
+									)
 
-			dataPW = preWhiteningResult['dataPW']
-			
-			oldElbowAngstrom = newElbowAngstrom
-			oldRampWeight    = newRampWeight
+				del preWhiteningResult
 
-			newElbowAngstrom, newRampWeight = displayPreWhitening(
-								elbowAngstrom = oldElbowAngstrom,
-								rampWeight    = oldRampWeight,
-								dataSpect     = dataPowerSpectrum,
-								dataBGSpect   = dataBGSpect,
-								peval         = preWhiteningResult['peval'],
-								dataPWSpect   = preWhiteningResult['dataPWSpect'],
-								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
-								xpoly         = preWhiteningResult['xpoly'],
-								vxSize 		  = vxSize,
-								dataSlice     = data[int(n/2),:,:], 
-								dataPWSlice   = dataPW[int(n/2),:,:]
-								)
+			data = dataPW
+			del softBGmask, dataF, dataPW
 
-			del preWhiteningResult
-
-		data = dataPW
-		del softBGmask, dataF, dataPW
 	else:
 		estimateVarianceFromBackground = False
 		print ( "=======================================================================\n"

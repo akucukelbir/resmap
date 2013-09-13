@@ -27,29 +27,27 @@ import matplotlib.cm as cm
 from matplotlib.widgets import Slider
 
 from ResMap_sphericalProfile import sphericalAverage
+from ResMap_helpers import createRmatrix
 
-def preWhitenVolume(x,y,z, **kwargs):
+def createPreWhiteningFilter(**kwargs):
 
-	print '\n= Pre-whitening Volume'
-	tStart = time()		
+	epsilon = 1e-10
 
-	R = np.sqrt(x**2 + y**2 + z**2)
-	del x, y, z
-
+	spectrum      = kwargs.get('spectrum', 0)
 	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
-	dataBGSpect   = kwargs.get('dataBGSpect', 0)
-	dataF         = kwargs.get('dataF', 0)
-	softBGmask    = kwargs.get('softBGmask', 0)
-	vxSize        = kwargs.get('vxSize', 0)
 	rampWeight    = kwargs.get('rampWeight',1.0)
+	vxSize        = kwargs.get('vxSize', 0)
+	n             = kwargs.get('n', 0)
 
-	epsilon = 1e-20
+	# Create R matrix
+	R = createRmatrix(n)
+	print(id(R))
 
 	# Create the x and y variables for the polynomial regression
-	xpoly = np.array(range(1,dataBGSpect.size + 1))
-	ypoly = np.log(np.sqrt(dataBGSpect))
+	xpoly = np.array(range(1,spectrum.size + 1))
+	ypoly = np.log(np.sqrt(spectrum))
 
-	# Find the index at which the spectrum hits certain frequencies
+	# Create the index of frequencies (depends on vxSize)
 	Fs     = 1/vxSize
 	Findex = 1/( Fs/2 * np.linspace(epsilon, 1, xpoly.size) )
 
@@ -58,7 +56,7 @@ def preWhitenVolume(x,y,z, **kwargs):
 	indexStart    = np.argmin((Findex-(1.05*elbowAngstrom))**2)
 	indexNyquist  = xpoly[-1]
 
-	# Create the weighting function (binary, in this case) to do a weighted fit
+	# Create the weighting function to do a weighted fit
 	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
 	wpoly += 0.5*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
 
@@ -66,16 +64,88 @@ def preWhitenVolume(x,y,z, **kwargs):
 	pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)
 	peval = np.polynomial.polynomial.polyval(xpoly, pcoef)
 
-	# Don't change any frequencies beyond indexStart to indexNyquist
+	# Don't change any frequencies outside of indexStart to indexNyquist
 	R[R<indexStart]   = indexStart
 	R[R>indexNyquist] = indexNyquist
 
 	# Create the pre-whitening filter
 	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
 
+	del R
+
+	return {'peval':peval, 'pcoef':pcoef, 'pWfilter': pWfilter}
+
+def createPreWhiteningFilterFinal(**kwargs):
+
+	epsilon = 1e-10
+
+	spectrum      = kwargs.get('spectrum', 0)
+	pcoef         = kwargs.get('pcoef', 0)
+	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
+	rampWeight    = kwargs.get('rampWeight',1.0)
+	vxSize        = kwargs.get('vxSize', 0)
+	n             = kwargs.get('n', 0)
+
+	R = createRmatrix(n)
+	print(id(R))
+
+	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	vminData, vmaxData = np.min(R), np.max(R)
+	ax1.imshow(R[(1*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax2.imshow(R[(2*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax3.imshow(R[(3*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+
+	# Create the x and y variables for the polynomial regression
+	xpoly = np.array(range(1,spectrum.size + 1))
+
+	# Create the index of frequencies (depends on vxSize)
+	Fs     = 1/vxSize
+	Findex = 1/( Fs/2 * np.linspace(epsilon, 1, xpoly.size) )
+
+	# Find the points of interest
+	indexStart    = np.argmin((Findex-(1.05*elbowAngstrom))**2)
+	indexNyquist  = xpoly[-1]
+
+	# Don't change any frequencies outside of indexStart to indexNyquist
+	R[R<indexStart]   = indexStart
+	R[R>indexNyquist] = indexNyquist
+
+	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	vminData, vmaxData = np.min(R), np.max(R)
+	ax1.imshow(R[(1*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax2.imshow(R[(2*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax3.imshow(R[(3*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+
+	# Create the pre-whitening filter
+	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
+
+	del R
+
+	return {'pWfilter': pWfilter}	
+
+def preWhitenVolumeSoftBG(**kwargs):
+
+	print '\n= Pre-whitening'
+	tStart = time()		
+
+	n             = kwargs.get('n', 0)
+	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
+	dataBGSpect   = kwargs.get('dataBGSpect', 0)
+	dataF         = kwargs.get('dataF', 0)
+	softBGmask    = kwargs.get('softBGmask', 0)
+	vxSize        = kwargs.get('vxSize', 0)
+	rampWeight    = kwargs.get('rampWeight',1.0)
+
+	epsilon = 1e-10
+
+	pWfilter = createPreWhiteningFilter(n             = n,
+										spectrum      = dataBGSpect,
+										elbowAngstrom = elbowAngstrom,
+										rampWeight    = rampWeight,
+										vxSize        = vxSize)
+
 	# Apply the pre-whitening filter
-	dataF       = np.multiply(pWfilter,dataF)
-	del pWfilter, R
+	dataF       = np.multiply(pWfilter['pWfilter'],dataF)
 
 	dataPWFabs  = np.abs(dataF)
 	dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
@@ -97,7 +167,80 @@ def preWhitenVolume(x,y,z, **kwargs):
 	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval':peval, 'xpoly':xpoly}
+	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'] }
+
+def preWhitenCube(**kwargs):
+
+	print '\n= Pre-whitening'
+	tStart = time()		
+
+	n             = kwargs.get('n', 0)
+	vxSize        = kwargs.get('vxSize', 0)
+	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
+	rampWeight    = kwargs.get('rampWeight',1.0)
+	dataF         = kwargs.get('dataF', 0)
+	dataBGF       = kwargs.get('dataBGF', 0)
+	dataBGSpect   = kwargs.get('dataBGSpect', 0)
+
+	epsilon = 1e-10
+
+	pWfilter = createPreWhiteningFilter(n             = n,
+										spectrum      = dataBGSpect,
+										elbowAngstrom = elbowAngstrom,
+										rampWeight    = rampWeight,
+										vxSize        = vxSize)
+
+	# Apply the pre-whitening filter to the inside cube
+	dataF       = np.multiply(pWfilter['pWfilter'],dataF)
+
+	dataPWFabs  = np.abs(dataF)
+	dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
+	dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
+	dataPWSpect = sphericalAverage(dataPWFabs**2) + epsilon
+
+	dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataF)))
+	del dataF
+
+	# Apply the pre-whitening filter to the outside cube
+	dataBGF       = np.multiply(pWfilter['pWfilter'],dataBGF)
+
+	dataPWBGFabs  = np.abs(dataBGF)
+	dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)
+	dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
+	dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
+
+	m, s = divmod(time() - tStart, 60)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'], 'pcoef': pWfilter['pcoef'] }
+
+# def preWhitenVolumeFinal(**kwargs):
+
+# 	print '\n= Pre-whitening'
+# 	tStart = time()		
+
+# 	n             = kwargs.get('n', 0)
+# 	rampWeight    = kwargs.get('rampWeight',1.0)
+# 	pcoef         = kwargs.get('pcoef', 0)
+# 	dataF         = kwargs.get('dataF', 0)
+
+# 	epsilon = 1e-10
+
+# 	pWfilter = createPreWhiteningFilter(n             = n,
+# 										spectrum      = dataBGSpect,
+# 										elbowAngstrom = elbowAngstrom,
+# 										rampWeight    = rampWeight,
+# 										vxSize        = vxSize)
+
+# 	# Apply the pre-whitening filter
+# 	dataF  = np.multiply(pWfilter['pWfilter'],dataF)
+# 	dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataF)))
+# 	del dataF
+
+# 	m, s = divmod(time() - tStart, 60)
+# 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+# 	return {'dataPW':dataPW}
 
 def preWhitenVolumeSplit(x,y,z, **kwargs):
 
@@ -182,10 +325,11 @@ def displayPreWhitening(**kwargs):
 	peval         = kwargs.get('peval', 0)
 	dataPWSpect   = kwargs.get('dataPWSpect', 0)
 	dataPWBGSpect = kwargs.get('dataPWBGSpect', 0)
-	xpoly         = kwargs.get('xpoly', 0)
 	vxSize        = kwargs.get('vxSize', 0)
 	dataSlice     = kwargs.get('dataSlice', 0)	
-	dataPWSlice   = kwargs.get('dataPWSlice', 0)	
+	dataPWSlice   = kwargs.get('dataPWSlice', 0)
+
+	xpoly = np.array(range(1,dataBGSpect.size + 1))
 
 	# Figure
 	fig = plt.figure(figsize=(18, 9))
