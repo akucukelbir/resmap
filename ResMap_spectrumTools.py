@@ -20,6 +20,7 @@ from time import time
 import numpy as np
 from scipy import signal
 from scipy import fftpack
+from scipy import ndimage
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -277,7 +278,8 @@ def displayPowerSpectrum(*args):
 def isPowerSpectrumLPF(dataPowerSpectrum):
 
 	# Calculated derivative of log of dataPowerSpectrum
-	diffLogPowerSpectrum = (np.diff(np.diff(np.log(dataPowerSpectrum))))
+	# smoothedLogSpectrum  = ndimage.filters.gaussian_filter1d(np.log(dataPowerSpectrum), 0.5, mode='nearest')
+	diffLogPowerSpectrum = np.diff(np.log(dataPowerSpectrum))
 
 	# Find positive peaks in the derivative
 	peakInd = signal.find_peaks_cwt(-1*diffLogPowerSpectrum, np.arange(1,10), min_snr=2)
@@ -285,31 +287,31 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	# Pick out the maximum radius index where a peak occurs
 	maxInd = np.max(peakInd)
 
-	print peakInd
-	print maxInd
+	# print peakInd
+	# print maxInd
 
-	fig = plt.figure(1)
-	ax = fig.add_subplot(111)
-	p = ax.plot(-1*diffLogPowerSpectrum)
-	# plt.yscale('log')
-	plt.grid(linestyle='dotted')
-	plt.ylabel('Power Spectrum (|f|^2)')
-	plt.xlabel('Frequency')
-	plt.show()
+	# fig = plt.figure(1)
+	# ax = fig.add_subplot(111)
+	# p = ax.plot(-1*diffLogPowerSpectrum)
+	# # plt.yscale('log')
+	# plt.grid(linestyle='dotted')
+	# plt.ylabel('Power Spectrum (|f|^2)')
+	# plt.xlabel('Frequency')
+	# plt.show()
 
 	# Calculate the mean and variance of the derivative of the power spectrum beyond maxInd
-	m, v   = np.mean(diffLogPowerSpectrum[maxInd+3:]), np.var(diffLogPowerSpectrum[maxInd+3:])
+	m, v   = np.mean(diffLogPowerSpectrum[maxInd+2:]), np.var(diffLogPowerSpectrum[maxInd+2:])
 
 	# If the mean and variance are basically zero after maxInd, it is highly likely that the volume was low-pass filtered
 	thr = 1e-4
 	if abs(m) < thr and v < thr:
-		return {'outcome':True, 'factor': float(maxInd)/dataPowerSpectrum.size}
+		return {'outcome':True, 'factor': float(maxInd-1)/dataPowerSpectrum.size}
 	else:
 		return {'outcome':False, 'factor': 0.0}
 
 def calculatePowerSpectrum(data):
 	
-	epsilon = 1e-12
+	epsilon = 1e-10
 
 	dataF     = np.array(fftpack.fftshift(fftpack.fftn(data)), dtype='complex64')
 	dataFabs  = np.abs(dataF)

@@ -2,9 +2,10 @@
 ResMap_helpers: module containing helper functions for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
+		  array_outer_product: computes an outer prodcut of high-dimesional ndarrays
 			  update_progress: prints a progress bar
-	  			evaluateRuben: evaluates rubenPython at a point and returns absolute value difference
-	    		  rubenPython: Python implementation of Algorithm AS 204 Appl. Stat. (1984) Vol. 33, No.3 
+				evaluateRuben: evaluates rubenPython at a point and returns absolute value difference
+				  rubenPython: Python implementation of Algorithm AS 204 Appl. Stat. (1984) Vol. 33, No.3 
 	make3DsteerableDirections: generates 16 unit normals that point to the edges and faces of the icosahedron
 
 Requirements:
@@ -16,6 +17,27 @@ Please see individual functions for attributions.
 
 from scipy.stats import norm
 import numpy as np
+
+def array_outer_product( A, B, result=None ):
+	''' 
+	Compute the outer-product in the final two dimensions of the given arrays.
+	If the result array is provided, the results are written into it.
+
+	Courtesy of stackoverflew user Dave.
+	LINK: http://stackoverflow.com/a/11764238
+
+	'''
+	assert( A.shape[:-1] == B.shape[:-1] )
+	if result is None:
+		result = np.zeros( A.shape+B.shape[-1:], dtype=A.dtype )
+	if A.ndim == 1:
+		result[:,:] = np.outer( A, B )
+	else:
+		for idx in xrange( A.shape[0] ):
+			array_outer_product( A[idx,...], B[idx,...], result[idx,...] )
+	return result
+
+
 
 def update_progress(amtDone):
 	'''
@@ -33,7 +55,7 @@ def evaluateRuben(c, alpha, weights):
 	Parameters
 	----------
 	c, weights: inputs into rubenPython. See rubenPython for details
-	     alpha: desired value to compare to rubenPython's result to
+		 alpha: desired value to compare to rubenPython's result to
 
 	Returns
 	-------
@@ -67,12 +89,12 @@ def rubenPython(weights, c, mult=None, delta=None, mode=1, maxit=100000, eps=1e-
 	Parameters (copied from CompQuqadForm, modified to match new variable naming)
 	----------
 	weights: the distinct non-zero characteristic roots of A Sigma
-	      c: the value point at which the distribution function is to be evaluated
+		  c: the value point at which the distribution function is to be evaluated
 	   mult: the vector of the respective orders of multiplicity for the weights
 	  delta: the non-centrality parameters
 	   mode: if mode>0 then \eqn{\beta=mode*\lambda_{min}} otherwise \eqn{\beta=\beta_B=2/(1/\lambda_{min}+1/\lambda_{max})}
 	  maxit: the maximum number of term K in equation below
-	    eps: the desired level of accuracy
+		eps: the desired level of accuracy
 
 	Returns (copied from CompQuadForm)
 	-------

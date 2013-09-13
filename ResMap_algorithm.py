@@ -119,44 +119,54 @@ def ResMap_algorithm(**kwargs):
 	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
 	tStart = time()
 
-	if n > 64:
-		mid = int(n/2)
+	# If the volume is larger than 128^3, then do LPF test on smaller volume to save computation
+	subVolLPF = 128
+	if n > subVolLPF:
 
-		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data[mid-31:mid+32, mid-31:mid+32, mid-31:mid+32])
+		print ( "=======================================================================\n"
+				"|                                                                     |\n"
+				"|          The input volume is quite large ( >128 voxels).            |\n"
+				"|                                                                     |\n"
+				"|         ResMap will run its low-pass filtering test on a            |\n"
+				"|       cube of size 128 taken from the center of the volume.         |\n"
+				"|                                                                     |\n"
+				"|        This is usually not a problem, but please notify the         |\n"				
+				"|                  authors if something goes awry.                    |\n"					
+				"|                                                                     |\n"
+				"=======================================================================\n")
 
-		fig = plt.figure(1)
-		ax = fig.add_subplot(111)
-		p = ax.plot(dataPowerSpectrum)
-		plt.yscale('log')
-		plt.grid(linestyle='dotted')
-		plt.ylabel('Power Spectrum (|f|^2)')
-		plt.xlabel('Frequency')
-		plt.show()
+		mid  = int(n/2)
+		midR = subVolLPF/2
 
+		# Extract a cube from the middle of the density
+		middleCube = data[mid-midR:mid+midR, mid-midR:mid+midR, mid-midR:mid+midR]
+
+		# Create a 3D hamming window
+		hammingWindow1D = signal.hamming(subVolLPF)
+		hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
+		hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
+		del hammingWindow1D, hammingWindow2D
+
+		# Apply the hamming window to the middle cube
+		middleCube = np.multiply(middleCube,hammingWindow3D)
+
+		# Calculate the Fourier spectrum and run the test
+		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(middleCube)
 		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+		del middleCube, hammingWindow3D
 	else:
 		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
-
-		fig = plt.figure(1)
-		ax = fig.add_subplot(111)
-		p = ax.plot(dataPowerSpectrum)
-		plt.yscale('log')
-		plt.grid(linestyle='dotted')
-		plt.ylabel('Power Spectrum (|f|^2)')
-		plt.xlabel('Frequency')
-		plt.show()
-
 		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
 
 	if LPFtest['outcome']:
 		print ( "=======================================================================\n"
 				"|                                                                     |\n"
 				"|            The volume appears to be low-pass filtered.              |\n"
-				"|                                                                     |\n"				
+				"|                                                                     |\n"
 				"|         This is not ideal, but ResMap will attempt to run.          |\n"
-				"|                                                                     |\n"				
+				"|                                                                     |\n"
 				"|        The input volume will be down-sampled within ResMap.         |\n"
-				"|                                                                     |\n"				
+				"|                                                                     |\n"
 				"=======================================================================\n")
 
 		# Calculate the ratio by which the volume should be down-sampled
@@ -168,7 +178,7 @@ def ResMap_algorithm(**kwargs):
 		vxSize = float(vxSize)/LPFfactor
 	else:
 		print "  The volume does not appear to be low-pass filtered. Great!\n"
-		LPFfactor = 0
+		LPFfactor = 0.0
 
 	# Calculate min res
 	if minRes <= (2.2*vxSize):
@@ -183,7 +193,7 @@ def ResMap_algorithm(**kwargs):
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print '\n\n= ResMap will now run with the following parameters'
-	print '  inputMap:\t%s' 	% inputFileName
+	print '  inputMap:\t%s' 		% inputFileName
 	print '  vxSize:\t%.2f' 		% vxSize
 	print '  pValue:\t%.2f'			% pValue
 	print '  minRes:\t%.2f' 		% minRes
@@ -195,6 +205,9 @@ def ResMap_algorithm(**kwargs):
 	print '\n= Computing Mask Separating Particle from Background'
 	tStart    = time()
 	
+	# Update n in case downsampling was necessary
+	n = data.shape[0]
+
 	# We assume the particle is at the center of the volume
 	# Create spherical mask
 	[x,y,z] = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
@@ -249,7 +262,7 @@ def ResMap_algorithm(**kwargs):
 		tStart    = time()
 
 		# Calculate spectrum of input volume only if downsampled, otherwise use previous computation
-		if LPFfactor != 0.0:
+		if LPFfactor != 0.0 or n > subVolLPF:
 			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
 
 		# Calculate spectrum of background volume
@@ -268,10 +281,12 @@ def ResMap_algorithm(**kwargs):
 		oldRampWeight = 0.0
 		newRampWeight = 1.0
 
-		# While the user changes the elbow in the Pre-Whitening Interface, repeat the pre-whitening.
-		# 	this loop will stop when the user does NOT change the elbow in the interface.
 		#
-		#	it is a bit of a hack, but it works completely within matplotlib which is a relief
+		#   While the user changes the elbow in the Pre-Whitening Interface, repeat the pre-whitening.
+		#
+		# 	This loop will stop when the user does NOT change the elbow in the interface.
+		#
+		#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
 		#
 		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
 
@@ -320,7 +335,7 @@ def ResMap_algorithm(**kwargs):
 				"|                 and the algorithm may simply fail.                  |\n"
 				"|                                                                     |\n"	
 				"|                                                                     |\n"	
-				"|       Please consider using ResMap's own estimation option.         |\n"	
+				"|          Please consider using ResMap's own noise estimate.         |\n"	
 				"|                                                                     |\n"																	
 				"=======================================================================\n")
 
@@ -333,7 +348,7 @@ def ResMap_algorithm(**kwargs):
 			print ( "=======================================================================\n"
 					"|                                                                     |\n"
 					"|     It seems like your variance estimate is more than 1 order       |\n"
-					"|           of magnitude off... beware of the results.                |\n"		
+					"|           of magnitude off... BE WARY of the results.               |\n"		
 					"|                                                                     |\n"																	
 					"=======================================================================\n")
 

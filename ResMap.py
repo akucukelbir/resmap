@@ -31,7 +31,7 @@ Arguments:
 
 Options:
   --noguiSingle       Run ResMap for Single Volumes in command-line mode
-  --noguiSplit       Run ResMap for Split Volumes in command-line mode
+  --noguiSplit        Run ResMap for Split Volumes in command-line mode
   --vxSize=VXSIZE     Voxel size of input map (A) [default: 0.0]
   --pVal=PVAL         P-value for likelihood ratio test [default: 0.05]
   --minRes=MINRES     Minimum resolution (A) [default: 0.0]       -> algorithm will start at just above 2*vxSize
@@ -84,7 +84,7 @@ class ResMapApp(object):
 		self.menubar = ttk.Frame(parent);
 		self.menubar.pack(side = tk.TOP, fill = tk.X)
 
-		# Create Help menubutton
+		# Create Help menubutton"path":
 		self.mb_help = ttk.Menubutton(self.menubar, text="Help")
 		self.mb_help.pack(side = tk.RIGHT)
 
