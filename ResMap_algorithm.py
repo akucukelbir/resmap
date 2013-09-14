@@ -119,16 +119,16 @@ def ResMap_algorithm(**kwargs):
 	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
 	tStart = time()
 
-	# If the volume is larger than 128^3, then do LPF test on smaller volume to save computation
-	subVolLPF = 128
+	# If the volume is larger than subVolLPF^3, then do LPF test on smaller volume to save computation
+	subVolLPF = 160
 	if n > subVolLPF:
 
 		print ( "=======================================================================\n"
 				"|                                                                     |\n"
-				"|          The input volume is quite large ( >128 voxels).            |\n"
+				"|          The input volume is quite large ( >160 voxels).            |\n"
 				"|                                                                     |\n"
 				"|         ResMap will run its low-pass filtering test on a            |\n"
-				"|       cube of size 128 taken from the center of the volume.         |\n"
+				"|       cube of size 160 taken from the center of the volume.         |\n"
 				"|                                                                     |\n"
 				"|        This is usually not a problem, but please notify the         |\n"				
 				"|                  authors if something goes awry.                    |\n"					
@@ -211,7 +211,6 @@ def ResMap_algorithm(**kwargs):
 	# We assume the particle is at the center of the volume
 	# Create spherical mask
 	R = createRmatrix(n)
-	print(id(R))
 	Rinside = R < n/2 - 1
 
 	# Check to see if mask volume was already provided
@@ -253,7 +252,7 @@ def ResMap_algorithm(**kwargs):
 					"|                                                                     |\n"
 					"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
 					"|                                                                     |\n"
-					"|              The volume is quite large ( >128 voxels).              |\n"
+					"|                    The volume is quite large.                       |\n"
 					"|                                                                     |\n"					
 					"|          ResMap will run its pre-whitening on the largest           |\n"
 					"|     cube it can fit within the particle and in the background.      |\n"		
@@ -348,19 +347,17 @@ def ResMap_algorithm(**kwargs):
 									dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
 									)
 
+
+			print '\n= Pre-whitening the Full Volume (this might take a bit of time...)'
+			tStart    = time()
+
 			# Apply the pre-whitening filter on the full-sized map
 			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
 
 			R = createRmatrix(n)
-			print(id(R))
-
-			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-			vminData, vmaxData = np.min(R), np.max(R)
-			ax1.imshow(R[(1*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-			ax2.imshow(R[(2*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-			ax3.imshow(R[(3*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 
 			pwFilterFinal = createPreWhiteningFilterFinal(	n = n,
+												cubeSize      = cubeSize,
 												spectrum      = dataPowerSpectrum,
 												pcoef         = preWhiteningResult['pcoef'],
 												elbowAngstrom = newElbowAngstrom,
@@ -369,34 +366,55 @@ def ResMap_algorithm(**kwargs):
 
 			dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataF))))
 
-			# Plots
-			f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+			m, s   = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
+
+			# Pre-whitening Results Plots
+			f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
+			f.suptitle('\nPre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
+
 			vminData, vmaxData = np.min(data), np.max(data)
 			ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 			ax2.imshow(data[(4*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 			ax3.imshow(data[(5*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-			ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")	
+			ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 
-			f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
 			vminDataPW, vmaxDataPW = np.min(dataPW), np.max(dataPW)
-			ax21.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-			ax22.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-			ax23.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-			ax24.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax5.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax6.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax7.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax8.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
 
-			plt.show()			
+			ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+			ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+			ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+			ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
+
+			ax5.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+			ax6.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+			ax7.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+			ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
+
+			ax1.set_ylabel('Input Volume\n\n',        fontsize=14, color='#104E8B', fontweight='bold')
+			ax5.set_ylabel('Pre-whitened Volume\n\n', fontsize=14, color='#104E8B', fontweight='bold')
+
+			plt.show()	
+
+			# Set the data to be the pre-whitened volume
+			data = dataPW
+			del dataF, dataPW, R	
 
 		else:
 
-			print ( "=======================================================================\n"
+			print("\n=======================================================================\n"
 					"|                                                                     |\n"
 					"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
 					"|                                                                     |\n"
-					"|           The volume is of reasonable size ( <128 voxels).          |\n"
+					"|                 The volume is of reasonable size.                   |\n"
 					"|                                                                     |\n"					
 					"|        ResMap will run its pre-whitening on the whole volume.       |\n"
 					"|                                                                     |\n"
-					"=======================================================================\n")			
+					"=======================================================================")			
 
 			print '\n= Computing Soft Mask Separating Particle from Background'
 			tStart      = time()
@@ -496,8 +514,6 @@ def ResMap_algorithm(**kwargs):
 					"|           of magnitude off... BE WARY of the results.               |\n"		
 					"|                                                                     |\n"																	
 					"=======================================================================\n")
-
-	del (x,y,z)	
 
 	# Initialize the ResMap result volume
 	resTOTAL = np.zeros_like(data)
@@ -856,3 +872,7 @@ def ResMap_algorithm(**kwargs):
 		axf3.set_ylabel('Number of Voxels')
 
 		plt.show()
+
+
+
+		

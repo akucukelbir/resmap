@@ -41,7 +41,6 @@ def createPreWhiteningFilter(**kwargs):
 
 	# Create R matrix
 	R = createRmatrix(n)
-	print(id(R))
 
 	# Create the x and y variables for the polynomial regression
 	xpoly = np.array(range(1,spectrum.size + 1))
@@ -85,15 +84,9 @@ def createPreWhiteningFilterFinal(**kwargs):
 	rampWeight    = kwargs.get('rampWeight',1.0)
 	vxSize        = kwargs.get('vxSize', 0)
 	n             = kwargs.get('n', 0)
+	cubeSize      = kwargs.get('cubeSize', 0)
 
-	R = createRmatrix(n)
-	print(id(R))
-
-	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-	vminData, vmaxData = np.min(R), np.max(R)
-	ax1.imshow(R[(1*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax2.imshow(R[(2*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax3.imshow(R[(3*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	R = createRmatrix(n) 
 
 	# Create the x and y variables for the polynomial regression
 	xpoly = np.array(range(1,spectrum.size + 1))
@@ -110,11 +103,8 @@ def createPreWhiteningFilterFinal(**kwargs):
 	R[R<indexStart]   = indexStart
 	R[R>indexNyquist] = indexNyquist
 
-	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-	vminData, vmaxData = np.min(R), np.max(R)
-	ax1.imshow(R[(1*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax2.imshow(R[(2*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax3.imshow(R[(3*n/4),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	# Rescale R such that the polynomial from the cube fit makes sense
+	R = R/(float(n)/(cubeSize-1))
 
 	# Create the pre-whitening filter
 	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
@@ -171,7 +161,7 @@ def preWhitenVolumeSoftBG(**kwargs):
 
 def preWhitenCube(**kwargs):
 
-	print '\n= Pre-whitening'
+	print '\n= Pre-whitening the Cubes'
 	tStart = time()		
 
 	n             = kwargs.get('n', 0)
