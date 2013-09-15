@@ -415,7 +415,7 @@ def ResMap_algorithm(**kwargs):
 
 			# Pre-whitening Results Plots
 			f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
-			f.suptitle('\nPre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
+			f.suptitle('Pre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
 
 			vminData, vmaxData = np.min(data), np.max(data)
 			ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
@@ -944,7 +944,7 @@ def ResMap_algorithm(**kwargs):
 
 		# Plots
 		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		f.suptitle('\nSlices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
+		f.suptitle('Slices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
 		vminData, vmaxData = np.min(dataOrig), np.max(dataOrig)
 		ax1.imshow(dataOrig[int(3*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 		ax2.imshow(dataOrig[int(4*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
@@ -957,7 +957,7 @@ def ResMap_algorithm(**kwargs):
 		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 	 
 		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
-		f2.suptitle('\nSlices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
+		f2.suptitle('Slices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
 		# ax21.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
@@ -978,7 +978,7 @@ def ResMap_algorithm(**kwargs):
 
 		# Histogram
 		f3   = plt.figure()
-		f3.suptitle('\nHistogram of ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
+		f3.suptitle('Histogram of ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
 		axf3 = f3.add_subplot(111)
 		
 		axf3.bar(range(len(resHisto)), resHisto.values(), align='center')

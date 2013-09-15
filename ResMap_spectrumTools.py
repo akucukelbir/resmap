@@ -2,7 +2,10 @@
 ResMap_spectrumToolks: module containing spectral processing functions for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
-			   preWhitenVolume: attempts to flatten frequencies beyond a given "elbow" value
+	  createPreWhiteningFilter: fits a polynomial to a spectrum and returns a whitening filter
+ createPreWhiteningFilterFinal: take a fitted polynomial and returns a whitening filter
+		 preWhitenVolumeSoftBG: attempts to pre-whiten using soft background mask for noise estimate
+		         preWhitenCube: attempts to pre-whiten using a cube taken from the difference map
 		   displayPreWhitening: display the quasi-interactive Pre-Whitening Interface
 		  displayPowerSpectrum: debugging tool
   			isPowerSpectrumLPF: attempts to determine whether there is a low-pass drop in the spectrum
@@ -16,6 +19,7 @@ Requirements:
 Please see individual functions for attributions.
 '''
 from time import time
+import sys
 
 import numpy as np
 from scipy import signal
@@ -25,12 +29,19 @@ from scipy import ndimage
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.widgets import Slider
+from matplotlib.widgets import Button
+from matplotlib.text import Text
 
 from ResMap_sphericalProfile import sphericalAverage
 from ResMap_helpers import createRmatrix
 
 def createPreWhiteningFilter(**kwargs):
+	'''
+	Creates a pre-whitening filter in 3D. Fits a polynomial to the spectrum
+	beyond the "elbowAngstrom" frequency. Returns a whitening filter that
+	can be adjusted using the "rampWeight." (Alp Kucukelbir, 2013)
 
+	'''
 	epsilon = 1e-10
 
 	spectrum      = kwargs.get('spectrum', 0)
@@ -39,7 +50,7 @@ def createPreWhiteningFilter(**kwargs):
 	vxSize        = kwargs.get('vxSize', 0)
 	n             = kwargs.get('n', 0)
 
-	# Create R matrix
+	# Create radius matrix
 	R = createRmatrix(n)
 
 	# Create the x and y variables for the polynomial regression
@@ -56,7 +67,7 @@ def createPreWhiteningFilter(**kwargs):
 	indexNyquist  = xpoly[-1]
 
 	# Create the weighting function to do a weighted fit
-	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
+	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist),    dtype='float32')
 	wpoly += 0.5*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
 
 	# Do the polynomial fit
@@ -75,7 +86,12 @@ def createPreWhiteningFilter(**kwargs):
 	return {'peval':peval, 'pcoef':pcoef, 'pWfilter': pWfilter}
 
 def createPreWhiteningFilterFinal(**kwargs):
+	'''
+	Creates a pre-whitening filter in 3D. Expects a fitted polynomial
+	defined by its "pcoef". Returns a whitening filter that
+	can be adjusted using the "rampWeight." (Alp Kucukelbir, 2013)
 
+	'''
 	epsilon = 1e-10
 
 	spectrum      = kwargs.get('spectrum', 0)
@@ -86,6 +102,7 @@ def createPreWhiteningFilterFinal(**kwargs):
 	n             = kwargs.get('n', 0)
 	cubeSize      = kwargs.get('cubeSize', 0)
 
+	# Create radius matrix
 	R = createRmatrix(n) 
 
 	# Create the x and y variables for the polynomial regression
@@ -114,7 +131,11 @@ def createPreWhiteningFilterFinal(**kwargs):
 	return {'pWfilter': pWfilter}	
 
 def preWhitenVolumeSoftBG(**kwargs):
+	'''
+	Pre-whitenening using noise estimates from a soft mask of the background. 
+	Returns a the pre-whitened volume and various spectra. (Alp Kucukelbir, 2013)
 
+	'''
 	print '\n= Pre-whitening'
 	tStart = time()		
 
@@ -160,7 +181,11 @@ def preWhitenVolumeSoftBG(**kwargs):
 	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'] }
 
 def preWhitenCube(**kwargs):
+	'''
+	Pre-whitenening using noise estimates from a cube taken from the difference map. 
+	Returns a the pre-whitened volume and various spectra. (Alp Kucukelbir, 2013)
 
+	'''
 	print '\n= Pre-whitening the Cubes'
 	tStart = time()		
 
@@ -204,109 +229,16 @@ def preWhitenCube(**kwargs):
 
 	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'], 'pcoef': pWfilter['pcoef'] }
 
-# def preWhitenVolumeFinal(**kwargs):
-
-# 	print '\n= Pre-whitening'
-# 	tStart = time()		
-
-# 	n             = kwargs.get('n', 0)
-# 	rampWeight    = kwargs.get('rampWeight',1.0)
-# 	pcoef         = kwargs.get('pcoef', 0)
-# 	dataF         = kwargs.get('dataF', 0)
-
-# 	epsilon = 1e-10
-
-# 	pWfilter = createPreWhiteningFilter(n             = n,
-# 										spectrum      = dataBGSpect,
-# 										elbowAngstrom = elbowAngstrom,
-# 										rampWeight    = rampWeight,
-# 										vxSize        = vxSize)
-
-# 	# Apply the pre-whitening filter
-# 	dataF  = np.multiply(pWfilter['pWfilter'],dataF)
-# 	dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataF)))
-# 	del dataF
-
-# 	m, s = divmod(time() - tStart, 60)
-# 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-
-# 	return {'dataPW':dataPW}
-
-def preWhitenVolumeSplit(x,y,z, **kwargs):
-
-	print '\n= Pre-whitening Volume'
-	tStart = time()		
-
-	R = np.sqrt(x**2 + y**2 + z**2)
-	del x, y, z
-
-	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
-	dataBGSpect   = kwargs.get('dataBGSpect', 0)
-	dataAF        = kwargs.get('dataAF', 0)
-	dataBF        = kwargs.get('dataBF', 0)
-	vxSize        = kwargs.get('vxSize', 0)
-	rampWeight    = kwargs.get('rampWeight',1.0)
-
-	epsilon = 1e-20
-
-	# Create the x and y variables for the polynomial regression
-	xpoly = np.array(range(1,dataBGSpect.size + 1))
-	ypoly = np.log(np.sqrt(dataBGSpect))
-
-	# Find the index at which the spectrum hits certain frequencies
-	Fs     = 1/vxSize
-	Findex = 1/( Fs/2 * np.linspace(epsilon, 1, xpoly.size) )
-
-	# Find the points of interest
-	indexElbow    = np.argmin((Findex-elbowAngstrom)**2)
-	indexStart    = np.argmin((Findex-(1.05*elbowAngstrom))**2)
-	indexNyquist  = xpoly[-1]
-
-	# Create the weighting function (binary, in this case) to do a weighted fit
-	wpoly =  np.array(np.bitwise_and(xpoly>indexElbow, xpoly<indexNyquist), dtype='float32')
-	wpoly += 0.5*np.array(np.bitwise_and(xpoly>indexStart, xpoly<=indexElbow), dtype='float32')
-
-	# Do the polynomial fit
-	pcoef = np.polynomial.polynomial.polyfit(xpoly, ypoly, 2, w=wpoly)
-	peval = np.polynomial.polynomial.polyval(xpoly, pcoef)
-
-	# Don't change any frequencies beyond indexStart to indexNyquist
-	R[R<indexStart]   = indexStart
-	R[R>indexNyquist] = indexNyquist
-
-	# Create the pre-whitening filter
-	pWfilter  = np.exp(np.polynomial.polynomial.polyval(R,-1.0*rampWeight*pcoef))
-
-	# Apply the pre-whitening filter
-	dataAF = np.multiply(pWfilter,dataAF)
-	dataBF = np.multiply(pWfilter,dataBF)
-	del pWfilter, R
-
-	# dataPWFabs  = np.abs(dataF)
-	# dataPWFabs  = dataPWFabs-np.min(dataPWFabs)
-	# dataPWFabs  = dataPWFabs/np.max(dataPWFabs)
-	# dataPWSpect = sphericalAverage(dataPWFabs**2) + epsilon
-
-	dataAPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataAF)))
-	dataBPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataBF)))
-	del dataAF, dataBF
-
-	# dataPWBG      = np.multiply(dataPW,softBGmask)
-	# dataPWBG     = np.array(fftpack.fftshift(fftpack.fftn(dataPWBG,overwrite_x=True)), dtype='complex64')
-	# dataPWBGFabs  = np.abs(dataPWBG)
-	# del dataPWBG
-
-	# dataPWBGFabs  = dataPWBGFabs-np.min(dataPWBGFabs)
-	# dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
-	# dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
-
-	m, s = divmod(time() - tStart, 60)
-	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-
-	return {'dataAPW':dataAPW, 'dataBPW':dataBPW, 'peval':peval, 'xpoly':xpoly}
-
 
 def displayPreWhitening(**kwargs):
+
+	def something_changed(val):
+		axbutton.cla()
+		buttonclose = Button(axbutton, label='Click here to Update', color=updcolor, hovercolor=updcolor)
+		fig.canvas.draw()
+
+	def quit_figure(event):
+		plt.close(event.canvas.figure)
 
 	elbowAngstrom = kwargs.get('elbowAngstrom',0)
 	rampWeight    = kwargs.get('rampWeight', 1.0)
@@ -324,27 +256,38 @@ def displayPreWhitening(**kwargs):
 	# Figure
 	fig = plt.figure(figsize=(18, 9))
 	fig.suptitle('\nResMap Pre-Whitening Interface (beta)', fontsize=20, color='#104E8B', fontweight='bold')
-	ax1 = plt.subplot2grid((2,3), (0,0), colspan=2)
-	ax2 = plt.subplot2grid((2,3), (1, 0))
-	ax3 = plt.subplot2grid((2,3), (1, 1))
-	axtext = plt.subplot2grid((2,3), (1, 2))
+
+	axcolor  = 'lightgoldenrodyellow'
+	okcolor  = 'seagreen'
+	updcolor = 'firebrick'
+
+	ax1      = plt.subplot2grid((2,3), (0,0), colspan=2)
+	ax2      = plt.subplot2grid((2,3), (1, 0))
+	ax3      = plt.subplot2grid((2,3), (1, 1))
+	axtext   = plt.subplot2grid((2,3), (1, 2))
 	
+	axbutton = plt.axes([0.67, 0.025, 0.23, 0.05])
+
+	# Continue/Update Button
+	buttonclose = Button(axbutton, label='Continue', color=okcolor, hovercolor=okcolor)
+	buttonclose.on_clicked(quit_figure)
+		
 	# Slider for elbow
-	axcolor = 'lightgoldenrodyellow'
 	axelbow = plt.axes([0.7, 0.65, 0.2, 0.03], axisbg=axcolor)
 	selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 100, valinit=elbowAngstrom)
+	selbow.on_changed(something_changed)
 
 	# Slider for rampWeight
 	axramp = plt.axes([0.7, 0.55, 0.2, 0.03], axisbg=axcolor)
 	sramp  = Slider(axramp, 'Ramp Weight', 0.0, 1.0, valinit=rampWeight)
-
+	sramp.on_changed(something_changed)
 
 	# Instructions
 	axtext.set_title('INSTRUCTIONS', color='#104E8B', fontweight='bold')
 	axtext.get_xaxis().set_visible(False)
 	axtext.get_yaxis().set_visible(False)
 	axtext.text(0.5, 0.5, 
-		'Please check that the green line\nis as straight as possible,\nat least in the high frequencies.\n\nIf not, adjust the sliders\nabove and close the window.\n\nResMap will try to\n pre-whiten the volume again.\n\nTo continue, close the window\n without adjusting anything.',
+		'Please check that the green line\nis as straight as possible,\nat least in the high frequencies.\n\nIf not, adjust the sliders\nabove and press the Update button.\n\nResMap will try to pre-whiten the\nvolume again (the window will close).\n\nIf you are satisfied\nplease press Continue below.',
         horizontalalignment='center',
         verticalalignment='center',
         fontsize=14,

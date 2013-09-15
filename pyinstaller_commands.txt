@@ -13,4 +13,4 @@ MAC (old):
 
 MAC (seesm to work now)
 
-	python pyinstaller.py -F /Users/alp/GitHub/pyLocalResolution/ResMap.py
+	python2.7 pyinstaller.py -F /Users/alp/GitHub/pyLocalResolution/ResMap.py

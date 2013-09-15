@@ -2,6 +2,7 @@
 ResMap_helpers: module containing helper functions for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
+			    createRmatrix: creates a radius matrix
 		  array_outer_product: computes an outer prodcut of high-dimesional ndarrays
 			  update_progress: prints a progress bar
 				evaluateRuben: evaluates rubenPython at a point and returns absolute value difference
@@ -19,12 +20,14 @@ from scipy.stats import norm
 import numpy as np
 
 def createRmatrix(n):
+	'''
+	Creates a Radius matrix in 3D (Alp Kucukelbir, 2013)
 
-	# Create R matrix
-	[x,y,z]   = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
-								    -n/2:n/2:complex(0,n),
-								    -n/2:n/2:complex(0,n) ], dtype='float32')
-	return np.array(np.sqrt(x**2 + y**2 + z**2), 	         dtype='float32')
+	'''
+	[x,y,z] = np.array( np.mgrid[ -n/2:n/2:complex(0,n),
+								  -n/2:n/2:complex(0,n),
+								  -n/2:n/2:complex(0,n) ], dtype='float32')
+	return np.array(np.sqrt(x**2 + y**2 + z**2), 	       dtype='float32')
 
 def array_outer_product( A, B, result=None ):
 	''' 
@@ -44,8 +47,6 @@ def array_outer_product( A, B, result=None ):
 		for idx in xrange( A.shape[0] ):
 			array_outer_product( A[idx,...], B[idx,...], result[idx,...] )
 	return result
-
-
 
 def update_progress(amtDone):
 	'''
