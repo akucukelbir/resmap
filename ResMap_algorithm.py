@@ -79,6 +79,8 @@ def ResMap_algorithm(**kwargs):
 	print '== BEGIN Resolution Map Calculation ==',
 	tBegin = time()
 
+	np.seterr(divide='raise',invalid='raise')
+
 	epsilon = 1e-20
 
 	debugMode = False
@@ -117,7 +119,7 @@ def ResMap_algorithm(**kwargs):
 
 		data     = 0.5 * (dataMRC1.matrix + dataMRC2.matrix)
 		data     = data-np.mean(data)
-		
+
 		dataDiff = 0.5 * (dataMRC1.matrix - dataMRC2.matrix)
 		dataDiff = dataDiff-np.mean(dataDiff)
 	else:
@@ -225,7 +227,7 @@ def ResMap_algorithm(**kwargs):
 	print '  minRes:\t%.2f' 		% minRes
 	print '  maxRes:\t%.2f'   		% maxRes
 	print '  stepRes:\t%.2f'   		% stepRes
-	print '  variance:\t%.4f'   	% variance
+	print '  variance:\t%.2f'   	% variance
 	print '  LPFfactor:\t%.2f'   	% LPFfactor
 
 	print '\n= Computing Mask Separating Particle from Background'
@@ -629,10 +631,14 @@ def ResMap_algorithm(**kwargs):
 		# Form matrix of Hermite polynomials 
 		A = np.zeros([numberOfPoints, numberOfBases])
 		A[:,0] = np.ones_like(kernel)
+
+		# Form the G2 (cosine-line terms)
 		for i in range(0,6):
 			tmp = dirs[:,:,:,i]
 			tmp = tmp.flatten()
 			A[:,i+1] = 4*(tmp**2) - 2;
+
+		# Form the H2 (sine-like terms)
 		for i in range(6,16):
 			tmp = dirs[:,:,:,i]
 			tmp = tmp.flatten()
@@ -650,7 +656,7 @@ def ResMap_algorithm(**kwargs):
 		# Invert weighted A matrix via SVD	
 		H = np.dot(A, np.dot(np.linalg.pinv(np.dot(np.diag(kernelSqrt),A)), np.diag(kernelSqrt)))
 
-		# Invert weighted Ac matrix via SVD
+		# Invert weighted Ac matrix analytically
 		Ack = np.dot(np.diag(kernelSqrt),Ac)	
 		Hc  = np.dot(Ac, np.dot(Ack.T/(np.linalg.norm(Ack)**2), np.diag(kernelSqrt)))
 
@@ -658,6 +664,7 @@ def ResMap_algorithm(**kwargs):
 		LAMBDA     = W-np.dot(W,H)
 		LAMBDAc    = W-np.dot(W,Hc)
 		LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32')
+		del LAMBDA, LAMBDAc
 
 		## Estimate variance
 		if splitVolume == False:
@@ -705,8 +712,7 @@ def ResMap_algorithm(**kwargs):
 				print 'done.'
 				m, s = divmod(time() - tStart, 60)
 				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-				del maskBGview 
-				del dataBGview
+				del maskBGview, dataBGview, blockMaskBG
 				print "variance = %.6f" % variance
 
 			else:
@@ -715,7 +721,7 @@ def ResMap_algorithm(**kwargs):
 
 				# Use numpy stride tricks to compute "view" into NON-overlapping
 				# blocks of 2*r+1. Does not allocate any extra memory
-				maskParticleview = rolling_window(maskParticle, 								
+				maskRinsideview = rolling_window(Rinside, 								
 										window=(winSize, winSize, winSize), 
 										asteps=(winSize, winSize, winSize))
 
@@ -723,8 +729,8 @@ def ResMap_algorithm(**kwargs):
 										window=(winSize, winSize, winSize), 
 										asteps=(winSize, winSize, winSize))
 
-				# Find blocks within maskParticleView that are all 1s (i.e. only contain particle voxels)
-				blockMaskParticle = np.squeeze(np.apply_over_axes(np.all, maskParticleview, [3,4,5]))
+				# Find blocks within maskRinsideview that are all 1s
+				blockMaskParticle = np.squeeze(np.apply_over_axes(np.all, maskRinsideview, [3,4,5]))
 
 				# Get the i, j, k indices where the blocks are all 1s
 				blockMaskParticleindex = np.array(np.where(blockMaskParticle))
@@ -746,8 +752,7 @@ def ResMap_algorithm(**kwargs):
 				print 'done.'
 				m, s = divmod(time() - tStart, 60)
 				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-				del maskParticleview 
-				del dataDiffview
+				del maskRinsideview, dataDiffview, blockMaskParticle
 				print "variance = %.6f" % variance
 
 		## Compute Likelihood Ratio Statistic
@@ -876,8 +881,13 @@ def ResMap_algorithm(**kwargs):
 	print "\n  MEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
 	print "MEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
 
-	dataOrig = dataMRC.matrix
-	old_n    = dataMRC.data_size[0]
+	if splitVolume == True:
+		dataOrig = dataMRC1.matrix
+		old_n    = dataMRC1.data_size[0]
+	else:
+		dataOrig = dataMRC.matrix
+		old_n    = dataMRC.data_size[0]
+
 	old_coordinates = np.mgrid[	0:n-1:complex(0,old_n),
 								0:n-1:complex(0,old_n),
 								0:n-1:complex(0,old_n) ]		
@@ -891,16 +901,24 @@ def ResMap_algorithm(**kwargs):
 		resTOTALma = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)	
 
 	# Write results out as MRC volume
-	(fname,ext)    = os.path.splitext(inputFileName)
-	dataMRC.matrix = np.array(resTOTAL,dtype='float32')
-	write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
+	if splitVolume == True:
+		(fname,ext)    = os.path.splitext(inputFileName1)
+		dataMRC1.matrix = np.array(resTOTAL,dtype='float32')
+		write_mrc2000_grid_data(dataMRC1, fname+"_resmap"+ext)
+	else:
+		(fname,ext)    = os.path.splitext(inputFileName)
+		dataMRC.matrix = np.array(resTOTAL,dtype='float32')
+		write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
 
 	m, s = divmod(time() - tBegin, 60)
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
 	
-	chimeraScriptFileName = createChimeraScript(inputFileName, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
+	if splitVolume == True:
+		chimeraScriptFileName = createChimeraScript(inputFileName1, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
+	else:
+		chimeraScriptFileName = createChimeraScript(inputFileName, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
 
 	print "\nCHIMERA SCRIPT WRITTEN to: " + chimeraScriptFileName
 
