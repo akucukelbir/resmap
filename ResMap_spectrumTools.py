@@ -434,7 +434,10 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	# plt.show()
 
 	# Calculate the mean and variance of the derivative of the power spectrum beyond maxInd
-	m, v   = np.mean(diffLogPowerSpectrum[maxInd+2:]), np.var(diffLogPowerSpectrum[maxInd+2:])
+	if maxInd < dataPowerSpectrum.size - 3:
+		m, v   = np.mean(diffLogPowerSpectrum[maxInd+2:]), np.var(diffLogPowerSpectrum[maxInd+2:])
+	else:
+		return {'outcome':False, 'factor': 0.0}
 
 	# If the mean and variance are basically zero after maxInd, it is highly likely that the volume was low-pass filtered
 	thr = 1e-4
