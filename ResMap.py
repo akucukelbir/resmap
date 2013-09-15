@@ -188,9 +188,9 @@ class ResMapApp(object):
 		# ROW 11
 		ttk.Checkbutton(self.mainframe, text="3D Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=2 , sticky=tk.W)
 
-		# ROW 12
-		ttk.Label(self.mainframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
-		ttk.Checkbutton(self.mainframe, text="Display Noise Diagnostics (ResMap)", variable=self.noiseDiagnostics).grid(column=2, row=12, columnspan=2, sticky=tk.W)
+		# # ROW 12
+		# ttk.Label(self.mainframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
+		# ttk.Checkbutton(self.mainframe, text="Display Noise Diagnostics (ResMap)", variable=self.noiseDiagnostics).grid(column=2, row=12, columnspan=2, sticky=tk.W)
 
 		# ROW 13
 		ttk.Button(self.mainframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=13, sticky=tk.E)
@@ -263,9 +263,9 @@ class ResMapApp(object):
 		# ROW 11
 		ttk.Checkbutton(self.splitframe, text="3D Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=2, sticky=tk.W)
 
-		# ROW 12
-		ttk.Label(self.splitframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
-		ttk.Checkbutton(self.splitframe, text="Display Noise Diagnostics (ResMap)", variable=self.noiseDiagnostics).grid(column=2, row=12, columnspan=2, sticky=tk.W)
+		# # ROW 12
+		# ttk.Label(self.splitframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
+		# ttk.Checkbutton(self.splitframe, text="Display Noise Diagnostics (ResMap)", variable=self.noiseDiagnostics).grid(column=2, row=12, columnspan=2, sticky=tk.W)
 
 		# ROW 13
 		ttk.Button(self.splitframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=13, sticky=tk.E)

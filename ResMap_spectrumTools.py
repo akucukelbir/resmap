@@ -19,7 +19,6 @@ Requirements:
 Please see individual functions for attributions.
 '''
 from time import time
-import sys
 
 import numpy as np
 from scipy import signal
@@ -30,7 +29,6 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.widgets import Slider
 from matplotlib.widgets import Button
-from matplotlib.text import Text
 
 from ResMap_sphericalProfile import sphericalAverage
 from ResMap_helpers import createRmatrix
