@@ -508,7 +508,7 @@ class ResMapApp(object):
 if __name__ == '__main__':
 	
 	global version
-	version = "1.1.0"
+	version = "1.1.1"
 
 	args = docopt(__doc__, version=version)
 

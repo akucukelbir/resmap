@@ -222,10 +222,13 @@ def preWhitenCube(**kwargs):
 	dataPWBGFabs  = dataPWBGFabs/np.max(dataPWBGFabs)
 	dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
 
+	dataBGPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataBGF)))
+	del dataBGF	
+
 	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	return {'dataPW':dataPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'], 'pcoef': pWfilter['pcoef'] }
+	return {'dataPW':dataPW, 'dataBGPW':dataBGPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'], 'pcoef': pWfilter['pcoef'] }
 
 
 def displayPreWhitening(**kwargs):
@@ -360,7 +363,10 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	peakInd = signal.find_peaks_cwt(-1*diffLogPowerSpectrum, np.arange(1,10), min_snr=2)
 
 	# Pick out the maximum radius index where a peak occurs
-	maxInd = np.max(peakInd)
+	if peakInd:
+		maxInd = np.max(peakInd)
+	else:
+		return {'outcome':False, 'factor': 0.0}
 
 	# print peakInd
 	# print maxInd

@@ -116,12 +116,9 @@ def ResMap_algorithm(**kwargs):
 	elif inputFileName1 and inputFileName2:
 
 		splitVolume = True
-
 		data     = 0.5 * (dataMRC1.matrix + dataMRC2.matrix)
-		data     = data-np.mean(data)
-
 		dataDiff = 0.5 * (dataMRC1.matrix - dataMRC2.matrix)
-		dataDiff = dataDiff-np.mean(dataDiff)
+
 	else:
 		print "There is a serious problem with loading files. Aborting."
 		exit(1) 
@@ -397,6 +394,8 @@ def ResMap_algorithm(**kwargs):
 
 			# Apply the pre-whitening filter on the full-sized map
 			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+			if splitVolume == True:
+				(dataDiffF, dataPowerSpectrumDoff) = calculatePowerSpectrum(dataDiff)
 
 			R = createRmatrix(n)
 
@@ -408,7 +407,9 @@ def ResMap_algorithm(**kwargs):
 												rampWeight    = newRampWeight,
 												vxSize        = vxSize)
 
-			dataPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataF))))
+			dataPW     = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataF))))
+			if splitVolume == True:
+				dataDiffPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataDiffF))))
 
 			m, s = divmod(time() - tStart, 60)
 			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
@@ -445,7 +446,10 @@ def ResMap_algorithm(**kwargs):
 			plt.show()	
 
 			# Set the data to be the pre-whitened volume
-			data = dataPW
+			data     = dataPW
+			if splitVolume == True:
+				dataDiff = dataDiffPW
+				del dataDiffF, dataDiffPW
 			del dataF, dataPW, R	
 
 		else:
@@ -521,7 +525,9 @@ def ResMap_algorithm(**kwargs):
 											dataBGF       = dataBGF,
 											dataBGSpect   = dataBGSpect)
 
-				dataPW = preWhiteningResult['dataPW']
+				dataPW   = preWhiteningResult['dataPW']
+				if splitVolume == True:
+					dataBGPW = preWhiteningResult['dataBGPW']
 				
 				oldElbowAngstrom = newElbowAngstrom
 				oldRampWeight    = newRampWeight
@@ -541,7 +547,10 @@ def ResMap_algorithm(**kwargs):
 
 				del preWhiteningResult
 
-			data = dataPW
+			data     = dataPW
+			if splitVolume == True:
+				dataDiff = dataBGPW
+				del dataBGPW
 			del dataF, dataBGF, dataPW
 
 	else:
@@ -585,6 +594,13 @@ def ResMap_algorithm(**kwargs):
 
 	# Initialize empty dictionary for histogram plotting
 	resHisto = OrderedDict()
+
+	# Define regions for noise estimation in singleVolume and splitVolume mode
+	if splitVolume == False:
+		# Calculate mask of background voxels within Rinside sphere but outside of particle mask
+		maskBG = Rinside-mask
+	else:
+		maskParticle = Rinside
 
 	# Continue testing larger and larger scales as long as there is "moreToProcess" (see below)
 	moreToProcess = True
@@ -666,13 +682,6 @@ def ResMap_algorithm(**kwargs):
 		LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32')
 		del LAMBDA, LAMBDAc
 
-		## Estimate variance
-		if splitVolume == False:
-			# Calculate mask of background voxels within Rinside sphere but outside of particle mask
-			maskBG = Rinside-mask
-		else:
-			maskParticle = mask
-
 		if estimateVarianceFromBackground == True:
 
 			if splitVolume == False:
@@ -721,7 +730,7 @@ def ResMap_algorithm(**kwargs):
 
 				# Use numpy stride tricks to compute "view" into NON-overlapping
 				# blocks of 2*r+1. Does not allocate any extra memory
-				maskRinsideview = rolling_window(Rinside, 								
+				maskParticleview = rolling_window(maskParticle, 								
 										window=(winSize, winSize, winSize), 
 										asteps=(winSize, winSize, winSize))
 
@@ -729,8 +738,8 @@ def ResMap_algorithm(**kwargs):
 										window=(winSize, winSize, winSize), 
 										asteps=(winSize, winSize, winSize))
 
-				# Find blocks within maskRinsideview that are all 1s
-				blockMaskParticle = np.squeeze(np.apply_over_axes(np.all, maskRinsideview, [3,4,5]))
+				# Find blocks within maskParticleview that are all 1s
+				blockMaskParticle = np.squeeze(np.apply_over_axes(np.all, maskParticleview, [3,4,5]))
 
 				# Get the i, j, k indices where the blocks are all 1s
 				blockMaskParticleindex = np.array(np.where(blockMaskParticle))
@@ -752,7 +761,7 @@ def ResMap_algorithm(**kwargs):
 				print 'done.'
 				m, s = divmod(time() - tStart, 60)
 				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-				del maskRinsideview, dataDiffview, blockMaskParticle
+				del maskParticleview, dataDiffview, blockMaskParticle
 				print "variance = %.6f" % variance
 
 		## Compute Likelihood Ratio Statistic
