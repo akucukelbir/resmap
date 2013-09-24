@@ -6,7 +6,7 @@ Please find the manual at http://resmap.sourceforge.net
 
 If you use ResMap in your work, please consider citing us:
 
-A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, In Review, 2013.
+A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, Nature Methods, In Press, 2013.
 
 This package is released under the Creative Commons Attribution-NonCommercial-NoDerivs 
 CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)
@@ -498,7 +498,7 @@ class ResMapApp(object):
 		showinfo("About ResMap",
 		("This is ResMap v"+version+".\n\n"
 		 "If you use ResMap in your work, please cite the following paper:\n\n" 
-		 "A. Kucukelbir, F.J. Sigworth, H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, In Review, 2013.\n\n"
+		 "A. Kucukelbir, F.J. Sigworth, H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, Nature Methods, In Press, 2013.\n\n"
 		 "This package is released under the Creative Commons Attribution-NonCommercial-NoDerivs CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)\n\n"
 		 "Please send comments, suggestions, and bug reports to alp.kucukelbir@yale.edu or hemant.tagare@yale.edu"))
 
