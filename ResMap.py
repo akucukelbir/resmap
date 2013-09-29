@@ -15,7 +15,6 @@ Usage:
   ResMap.py [(--noguiSingle INPUT)] [--vxSize=VXSIZE]
             [--pVal=PVAL]
             [--minRes=MINRES] [--maxRes=MAXRES] [--stepRes=STEPRES]
-            [--variance=VAR]
             [--maskVol=MASKVOL]
             [--vis2D] [--launchChimera] [--noiseDiag]
   ResMap.py [(--noguiSplit INPUT1 INPUT2)] [--vxSize=VXSIZE]
@@ -37,7 +36,6 @@ Options:
   --minRes=MINRES     Minimum resolution (A) [default: 0.0]       -> algorithm will start at just above 2*vxSize
   --maxRes=MAXRES     Maximum resolution (A) [default: 0.0]       -> algorithm will stop at around 4*vxSize
   --stepRes=STEPRES   Step size (A) [default: 1.0]                -> min 0.25A 
-  --variance=VAR      Noise Variance of input map [default: 0.0]  -> NOT RECOMMENDED
   --maskVol=MASKVOL   Mask volume                                 -> ResMap will automatically compute a mask
   --vis2D             Output 2D visualization
   --launchChimera     Attempt to launch Chimera after execution
@@ -110,20 +108,18 @@ class ResMapApp(object):
 
 		## GLOBAL VARIABLES FOR BOTH NOTEBOOK FRAMES
 		# Create Tk variables
-		self.graphicalOutput  = tk.IntVar()
+		self.graphicalOutput  = tk.IntVar(value=1)
 		self.chimeraLaunch    = tk.IntVar()
 		self.noiseDiagnostics = tk.IntVar()
 		self.volFileName      = tk.StringVar()
 		self.volFileName1     = tk.StringVar()
 		self.volFileName2     = tk.StringVar()				
-		self.voxelSize        = tk.StringVar()
+		self.voxelSize        = tk.StringVar(value="Auto")
 		self.alphaValue       = tk.StringVar(value="0.05")
 		self.minRes           = tk.StringVar(value="0.0")
 		self.maxRes           = tk.StringVar(value="0.0")
 		self.stepRes          = tk.StringVar(value="1.0")
-		self.variance         = tk.StringVar(value="0.0")
 		self.maskFileName     = tk.StringVar(value="None; ResMap will automatically compute a mask. Load File to override.")
-
 
 		## SINGLE VOLUME FRAME
 		# Create single volume input frame 
@@ -145,16 +141,16 @@ class ResMapApp(object):
 
 		# ROW 2
 		ttk.Label(self.mainframe, text="Voxel Size:").grid(column=1, row=2, sticky=tk.E)
-		ttk.Entry(self.mainframe, width=5, textvariable=self.voxelSize).grid(column=2, row=2, sticky=tk.W)		
-		ttk.Label(self.mainframe, text="in Angstroms (A/voxel)").grid(column=3, row=2, sticky=tk.W)
+		ttk.Entry(self.mainframe, width=5, textvariable=self.voxelSize, foreground="gray").grid(column=2, row=2, sticky=tk.W)		
+		ttk.Label(self.mainframe, text="Angstrom/voxel (default: algorithm will read value from MRC header)").grid(column=3, row=2, sticky=tk.W)
 
 		# ROW 3
 		ttk.Label(self.mainframe, text="Optional Inputs", font = "Helvetica 14 bold").grid(column=1, row=3, columnspan=8, sticky=tk.W)
 
 		# ROW 4
-		ttk.Label(self.mainframe, text="Confidence Level:").grid(column=1, row=4, sticky=tk.E)
-		ttk.Entry(self.mainframe, width=5, textvariable=self.alphaValue).grid(column=2, row=4, sticky=tk.W)
-		ttk.Label(self.mainframe, text="usually between [0.01, 0.05]").grid(column=3, row=4, sticky=tk.W)
+		ttk.Label(self.mainframe, text="Step Size:").grid(column=1, row=4, sticky=tk.E)
+		ttk.Entry(self.mainframe, width=5, textvariable=self.stepRes).grid(column=2, row=4, sticky=tk.W)
+		ttk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=4, sticky=tk.W)
 
 		# ROW 5
 		ttk.Label(self.mainframe, text="Min Resolution:").grid(column=1, row=5, sticky=tk.E)
@@ -167,26 +163,21 @@ class ResMapApp(object):
 		ttk.Label(self.mainframe, text="in Angstroms (default: algorithm will stop at around 4*voxelSize)").grid(column=3, row=6, sticky=tk.W)
 
 		# ROW 7
-		ttk.Label(self.mainframe, text="Step Size:").grid(column=1, row=7, sticky=tk.E)
-		ttk.Entry(self.mainframe, width=5, textvariable=self.stepRes).grid(column=2, row=7, sticky=tk.W)
-		ttk.Label(self.mainframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=7, sticky=tk.W)
+		ttk.Label(self.mainframe, text="Confidence Level:").grid(column=1, row=7, sticky=tk.E)
+		ttk.Entry(self.mainframe, width=5, textvariable=self.alphaValue).grid(column=2, row=7, sticky=tk.W)
+		ttk.Label(self.mainframe, text="usually between [0.01, 0.05]").grid(column=3, row=7, sticky=tk.W)		
 
 		# ROW 8
-		ttk.Label(self.mainframe, text="Noise Variance:").grid(column=1, row=8, sticky=tk.E)
-		ttk.Entry(self.mainframe, width=5, textvariable=self.variance).grid(column=2, row=8, sticky=tk.W)
-		ttk.Label(self.mainframe, text="noise variance of input map.\n[NOT RECOMMENDED: ResMap will assume the input map has already been pre-whitened]").grid(column=3, row=8, columnspan=9, sticky=tk.W)		
+		ttk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=8, sticky=tk.E)
+		ttk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, foreground="gray").grid(column=2, columnspan=10, row=8, sticky=(tk.W, tk.E))
+		ttk.Button(self.mainframe, text="Load", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=8, sticky=tk.W)
 
 		# ROW 9
-		ttk.Label(self.mainframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
-		ttk.Entry(self.mainframe, width=100, textvariable=self.maskFileName, foreground="gray").grid(column=2, columnspan=10, row=9, sticky=(tk.W, tk.E))
-		ttk.Button(self.mainframe, text="Load", command=(lambda: self.load_file(self.maskFileName))).grid(column=12, row=9, sticky=tk.W)
+		ttk.Label(self.mainframe, text="Visualization Options:").grid(column=1, row=9, sticky=tk.E)
+		ttk.Checkbutton(self.mainframe, text="2D Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=9, columnspan=2, sticky=tk.W)
 
 		# ROW 10
-		ttk.Label(self.mainframe, text="Visualization Options:").grid(column=1, row=10, sticky=tk.E)
-		ttk.Checkbutton(self.mainframe, text="2D Result Visualization (ResMap)", variable=self.graphicalOutput).grid(column=2, row=10, columnspan=2, sticky=tk.W)
-
-		# ROW 11
-		ttk.Checkbutton(self.mainframe, text="3D Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=11, columnspan=2 , sticky=tk.W)
+		ttk.Checkbutton(self.mainframe, text="3D Result Visualization (UCSF Chimera)", variable=self.chimeraLaunch).grid(column=2, row=10, columnspan=2 , sticky=tk.W)
 
 		# # ROW 12
 		# ttk.Label(self.mainframe, text="Diagnostics Options:").grid(column=1, row=12, sticky=tk.E)
@@ -225,16 +216,16 @@ class ResMapApp(object):
 
 		# ROW 3
 		ttk.Label(self.splitframe, text="Voxel Size:").grid(column=1, row=3, sticky=tk.E)
-		ttk.Entry(self.splitframe, width=5, textvariable=self.voxelSize).grid(column=2, row=3, sticky=tk.W)
-		ttk.Label(self.splitframe, text="in Angstroms (A/voxel)").grid(column=3, row=3, sticky=tk.W)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.voxelSize, foreground="gray").grid(column=2, row=3, sticky=tk.W)
+		ttk.Label(self.splitframe, text="Angstrom/voxel (default: algorithm will read value from MRC header)").grid(column=3, row=3, sticky=tk.W)
 
 		# ROW 4
 		ttk.Label(self.splitframe, text="Optional Inputs", font = "Helvetica 14 bold").grid(column=1, row=4, columnspan=8, sticky=tk.W)
 
 		# ROW 5
-		ttk.Label(self.splitframe, text="Confidence Level:").grid(column=1, row=5, sticky=tk.E)
-		ttk.Entry(self.splitframe, width=5, textvariable=self.alphaValue).grid(column=2, row=5, sticky=tk.W)
-		ttk.Label(self.splitframe, text="usually between [0.01, 0.05]").grid(column=3, row=5, sticky=tk.W)
+		ttk.Label(self.splitframe, text="Step Size:").grid(column=1, row=5, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.stepRes).grid(column=2, row=5, sticky=tk.W)
+		ttk.Label(self.splitframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=5, sticky=tk.W)
 
 		# ROW 6
 		ttk.Label(self.splitframe, text="Min Resolution:").grid(column=1, row=6, sticky=tk.E)
@@ -247,9 +238,9 @@ class ResMapApp(object):
 		ttk.Label(self.splitframe, text="in Angstroms (default: algorithm will stop at around 4*voxelSize)").grid(column=3, row=7, sticky=tk.W)
 
 		# ROW 8
-		ttk.Label(self.splitframe, text="Step Size:").grid(column=1, row=8, sticky=tk.E)
-		ttk.Entry(self.splitframe, width=5, textvariable=self.stepRes).grid(column=2, row=8, sticky=tk.W)
-		ttk.Label(self.splitframe, text="in Angstroms (min: 0.25, default: 1.0)").grid(column=3, row=8, sticky=tk.W)
+		ttk.Label(self.splitframe, text="Confidence Level:").grid(column=1, row=8, sticky=tk.E)
+		ttk.Entry(self.splitframe, width=5, textvariable=self.alphaValue).grid(column=2, row=8, sticky=tk.W)
+		ttk.Label(self.splitframe, text="usually between [0.01, 0.05]").grid(column=3, row=8, sticky=tk.W)
 
 		# ROW 9
 		ttk.Label(self.splitframe, text="Mask Volume:").grid(column=1, row=9, sticky=tk.E)
@@ -421,23 +412,7 @@ class ResMapApp(object):
 
 			if stepRes < 0.25:
 				showerror("Check Inputs", "'stepRes' is too small. Please input a step size greater than 0.25 in Angstroms.")
-				return	
-
-		if singleVolumeTab:
-			# Check noise variance
-			if self.variance.get() == "":
-				showerror("Check Inputs", "'variance' is not set. Please input a valid noise variance value.")
-				return
-			else:
-				try:
-					variance = float(self.variance.get())
-				except ValueError:
-					showerror("Check Inputs", "'variance' is not a valid number. Please input a valid nois variance value.")
-					return
-
-				if variance < 0.0:
-					showerror("Check Inputs", "'variance' is too small. Please input a noise variance greater than 0.0.")
-					return					
+				return					
 
 		# Check mask file name and try loading MRC file
 		if self.maskFileName.get() == "":
@@ -468,7 +443,6 @@ class ResMapApp(object):
 					maxRes           = maxRes,
 					stepRes          = stepRes,
 					dataMask         = dataMask,
-					variance         = variance,
 					graphicalOutput  = self.graphicalOutput.get(),
 					chimeraLaunch    = self.chimeraLaunch.get(),
 					noiseDiagnostics = self.noiseDiagnostics.get(),
@@ -508,7 +482,7 @@ class ResMapApp(object):
 if __name__ == '__main__':
 	
 	global version
-	version = "1.1.1"
+	version = "1.1.2"
 
 	args = docopt(__doc__, version=version)
 
@@ -588,17 +562,7 @@ if __name__ == '__main__':
 			exit("The step size (--stepRes) is not a valid floating point number.")
 
 		if stepRes < 0.25:
-			exit("The step size (--stepRes) is too small.")			
-
-		# --variance
-		if args['--noguiSingle'] == True:	# only applicable in single volume case
-			try:
-				variance = float(args['--variance'])
-			except:
-				exit("The noise variance (--variance) is not a valid floating point number.")
-
-			if variance < 0.0:
-				exit("The noise variance (--variance) is a negative number.")		
+			exit("The step size (--stepRes) is too small.")				
 
 		# --maskVol
 		if args['--maskVol'] == None:
@@ -620,7 +584,6 @@ if __name__ == '__main__':
 					maxRes           = maxRes,
 					stepRes          = stepRes,
 					dataMask         = dataMask,
-					variance         = variance,
 					graphicalOutput  = args['--vis2D'],
 					chimeraLaunch    = args['--launchChimera'],
 					noiseDiagnostics = args['--noiseDiag']
