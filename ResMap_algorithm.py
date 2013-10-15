@@ -20,6 +20,9 @@ from scipy import ndimage
 from scipy.optimize import minimize_scalar
 from scipy.ndimage import filters
 
+import matplotlib
+matplotlib.use('TkAgg')
+
 import matplotlib.pyplot as plt
 
 from ResMap_helpers import *
