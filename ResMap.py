@@ -6,7 +6,7 @@ Please find the manual at http://resmap.sourceforge.net
 
 If you use ResMap in your work, please consider citing us:
 
-A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, Nature Methods, In Press, 2013.
+A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, Quantifying the Local Resolution of Cryo-EM Density Maps, Nature Methods, In Press, 2013.
 
 This package is released under the Creative Commons Attribution-NonCommercial-NoDerivs 
 CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)
@@ -186,11 +186,10 @@ class ResMapApp(object):
 		# ROW 13
 		ttk.Button(self.mainframe, text="Check Inputs and RUN", style='ResMap.TButton', command=self.checkInputsAndRun).grid(column=9, columnspan=4, row=13, sticky=tk.E)
 
-		self.parent.bind("<Return>",self.checkInputsAndRun)
-
 		# Setup grid with padding
 		for child in self.mainframe.winfo_children(): child.grid_configure(padx=5, pady=5)
 
+		self.parent.bind("<Return>",self.checkInputsAndRun)
 
 		## SPLIT VOLUME FRAME
 		# Create split volume input frame 
@@ -343,6 +342,15 @@ class ResMapApp(object):
 		if self.voxelSize.get() == "":
 			showerror("Check Inputs", "'voxelSize' is not set. Please input a voxel size in Angstroms.")
 			return
+		elif self.voxelSize.get().split(';',1)[0] == "Auto":
+			try:
+				if singleVolumeTab:
+					vxSize = float(data.data_step[0])
+				else:
+					vxSize = float(data1.data_step[0])
+			except ValueError:
+				showerror("Check Inputs", "'voxelSize' cannot be read from the MRC file. Please input a valid voxel size in Angstroms.")
+				return				
 		else:
 			try:
 				vxSize = float(self.voxelSize.get())
@@ -350,9 +358,9 @@ class ResMapApp(object):
 				showerror("Check Inputs", "'voxelSize' is not a valid number. Please input a valid voxel size in Angstroms.")
 				return
 
-			if vxSize <= 0:
-				showerror("Check Inputs", "'voxelSize' is not a positive number. Please input a positive voxel size in Angstroms.")
-				return
+		if vxSize <= 0:
+			showerror("Check Inputs", "'voxelSize' is not a positive number. Please input a positive voxel size in Angstroms.")
+			return
 
 		# Check confidence level
 		if self.alphaValue.get() == "":
@@ -472,7 +480,7 @@ class ResMapApp(object):
 		showinfo("About ResMap",
 		("This is ResMap v"+version+".\n\n"
 		 "If you use ResMap in your work, please cite the following paper:\n\n" 
-		 "A. Kucukelbir, F.J. Sigworth, H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, Nature Methods, In Press, 2013.\n\n"
+		 "A. Kucukelbir, F.J. Sigworth, H.D. Tagare, Quantifying the Local Resolution of Cryo-EM Density Maps, Nature Methods, In Press, 2013.\n\n"
 		 "This package is released under the Creative Commons Attribution-NonCommercial-NoDerivs CC BY-NC-ND License (http://creativecommons.org/licenses/by-nc-nd/3.0/)\n\n"
 		 "Please send comments, suggestions, and bug reports to alp.kucukelbir@yale.edu or hemant.tagare@yale.edu"))
 
@@ -499,6 +507,7 @@ if __name__ == '__main__':
 			# INPUT
 			try:
 				data = MRC_Data(args['INPUT'],'ccp4')
+				vxSize = float(data.data_step[0])
 			except:
 				exit("The input volume (MRC/CCP4 format) could not be read.")
 
@@ -509,6 +518,7 @@ if __name__ == '__main__':
 			try:
 				data1 = MRC_Data(args['INPUT1'],'ccp4')
 				data2 = MRC_Data(args['INPUT2'],'ccp4')
+				vxSize = float(data1.data_step[0])
 			except:
 				exit("The input volumes (MRC/CCP4 format) could not be read.")
 
@@ -517,16 +527,14 @@ if __name__ == '__main__':
 			inputFileName2 = os.path.normpath(os.path.join(os.getcwd(),args['INPUT2']))	
 
 		# --vxSize
-		if args['--vxSize'] == '0.0':
-			exit("A voxel size (--vxSize) was not defined.")
-		else:
+		if args['--vxSize'] != 0.0:	# Only grab the vxSize if it is inputted
 			try:
 				vxSize = float(args['--vxSize'])
 			except:
 				exit("The voxel size (--vxSize) is not a valid floating point number.")
 
-			if vxSize <= 0.0:
-				exit("The voxel size (--vxSize) is not a positive number.")
+		if vxSize <= 0.0:
+			exit("The voxel size is not a positive number.")
 
 		# --pVal
 		try:

@@ -34,9 +34,7 @@ from ResMap_sphericalProfile import sphericalAverage
 
 def ResMap_algorithm(**kwargs):
 	'''
-	ResMap_algorithm implements the procedure described in the following article:
-
-	A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, The Local Resolution of Cryo-EM Density Maps, In Review, 2013.
+	ResMap_algorithm
 
 	The procedure will (coarsely speaking) do the following things:	
 		1. Grab the volume from the the MRC data structure (class)
