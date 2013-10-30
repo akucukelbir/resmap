@@ -23,7 +23,7 @@ Usage:
             [--maskVol=MASKVOL]
             [--vis2D] [--launchChimera] [--noiseDiag]
 
-NOTE: INPUT(s) and --vxSize are mandatory inputs to ResMap 
+NOTE: INPUT(s) is/are mandatory
 
 Arguments:
   INPUT(s)            Input volume(s) in MRC format

@@ -97,18 +97,22 @@ def ResMap_algorithm(**kwargs):
 	dataMRC1         = kwargs.get('data1', 0)	
 	dataMRC2         = kwargs.get('data2', 0)
 		
-	vxSize           = kwargs.get('vxSize',   1.0 )
+	vxSize           = kwargs.get('vxSize',   0.0 )
 	pValue           = kwargs.get('pValue',   0.05)
 	minRes           = kwargs.get('minRes',   0.0 ) 
 	maxRes           = kwargs.get('maxRes',   0.0 )
 	stepRes          = kwargs.get('stepRes',  1.0 ) 
 	dataMask         = kwargs.get('dataMask', 0)
-	variance         = kwargs.get('variance', 0.0)
 	
 	graphicalOutput  = bool(kwargs.get('graphicalOutput', False))
 	chimeraLaunch    = bool(kwargs.get('chimeraLaunch', False))
 	noiseDiagnostics = bool(kwargs.get('noiseDiagnostics', False))
  
+	# Check for voxel size (really shouldn't ever happen)
+	if vxSize == 0.0:
+		print "There is a serious problem with the voxel size. Aborting."
+		exit(1) 		
+
 	# Extract volume(s) from input MRC file(s)
 	splitVolume = False
 	if inputFileName:
@@ -225,7 +229,6 @@ def ResMap_algorithm(**kwargs):
 	print '  minRes:\t%.2f' 		% minRes
 	print '  maxRes:\t%.2f'   		% maxRes
 	print '  stepRes:\t%.2f'   		% stepRes
-	print '  variance:\t%.2f'   	% variance
 	print '  LPFfactor:\t%.2f'   	% LPFfactor
 
 	print '\n= Computing Mask Separating Particle from Background'
