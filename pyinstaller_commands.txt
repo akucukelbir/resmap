@@ -5,7 +5,7 @@ FEDORA:
 
 WINDOWS:
 
-	run pyinstaller.py -F C:\Users\Alp\Documents\GitHub\pyLocalResolution\ResMap.py
+	run pyinstaller.py --upx-dir=C:\upx309w -F C:\Users\Alp\Documents\GitHub\pyLocalResolution\ResMap.py
 
 MAC (old): 
 
