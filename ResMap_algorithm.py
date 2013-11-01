@@ -272,101 +272,253 @@ def ResMap_algorithm(**kwargs):
 	oldRampWeight = 0.0
 	newRampWeight = 1.0
 
-	if variance == 0.0:
-		estimateVarianceFromBackground = True
+	if n > subVolLPF:
 
-		if n > subVolLPF:
+		print("\n=======================================================================\n"
+				"|                                                                     |\n"
+				"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
+				"|                                                                     |\n"
+				"|                    The volume is quite large.                       |\n"
+				"|                                                                     |\n"					
+				"|          ResMap will run its pre-whitening on the largest           |\n"
+				"|     cube it can fit within the particle and in the background.      |\n"	
+				"|                                                                     |\n"	
+				"|          In split volume mode, ResMap will only fit a cube          |\n"
+				"|  inside the particle and use the difference map as the background.  |\n"		
+				"|                                                                     |\n"
+				"=======================================================================\n")
+		
+		print '\n= Computing The Largest Cube Within the Particle'
+		tStart = time()
 
-			print("\n=======================================================================\n"
-					"|                                                                     |\n"
-					"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
-					"|                                                                     |\n"
-					"|                    The volume is quite large.                       |\n"
-					"|                                                                     |\n"					
-					"|          ResMap will run its pre-whitening on the largest           |\n"
-					"|     cube it can fit within the particle and in the background.      |\n"	
-					"|                                                                     |\n"	
-					"|          In split volume mode, ResMap will only fit a cube          |\n"
-					"|  inside the particle and use the difference map as the background.  |\n"		
-					"|                                                                     |\n"
-					"=======================================================================\n")
+		dataMaskDistance = ndimage.morphology.distance_transform_cdt(dataMask, metric='taxicab')
+
+		m, s = divmod(time() - tStart, 60)
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+		# Only need to compute largest cube in background if in single volume mode
+		if splitVolume == False:
+			print '\n= Computing The Largest Cube in the Background'
+			tStart = time()
 			
-			print '\n= Computing The Largest Cube Within the Particle'
+			dataOutside         = np.logical_and(np.logical_not(dataMask),Rinside)
+			dataOutsideDistance = ndimage.morphology.distance_transform_cdt(dataOutside, metric='taxicab')
+
+			m, s = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
+
+		print '\n= Extracting Cubes and Calculating Spherically Averaged Power Spectra'
+		tStart = time()
+
+		# Calculate the largest box size that can be fit 
+		if splitVolume == True:
+			# Biggest cube that fits just inside the particle
+			widthBox = np.max(dataMaskDistance) 
+		else:
+			# Biggest cube that fits both inside and oustide the particle
+			widthBox = np.min((np.max(dataMaskDistance), np.max(dataOutsideDistance)))
+		halfWidthBox = np.floor(widthBox/2)
+		cubeSize     = 2*halfWidthBox
+
+		# Extract a cube from inside the particle
+		insideBox    = np.unravel_index(np.argmax(dataMaskDistance),(n,n,n))
+		cubeInside   = data[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
+							insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
+							insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];
+
+		if splitVolume == True:
+			# Extract the same cube from the difference map
+			cubeOutside  = dataDiff[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
+									insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
+									insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];	
+		else:
+			# Extract a cube from outside the particle
+			outsideBox   = np.unravel_index(np.argmax(dataOutsideDistance),(n,n,n))
+			cubeOutside  = data[outsideBox[0]-halfWidthBox:outsideBox[0]+halfWidthBox,
+								outsideBox[1]-halfWidthBox:outsideBox[1]+halfWidthBox,
+								outsideBox[2]-halfWidthBox:outsideBox[2]+halfWidthBox ];	
+
+		# Create a hamming window														
+		hammingWindow1D = signal.hamming(cubeSize)
+		hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
+		hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
+
+		# Multiply both cubes by the hamming window
+		cubeInside      = np.multiply(cubeInside, hammingWindow3D)
+		cubeOutside     = np.multiply(cubeOutside,hammingWindow3D)
+
+		# Calculate spectrum of inside volume
+		(dataF,   dataSpect)   = calculatePowerSpectrum(cubeInside)
+
+		# Calculate spectrum of outside volume
+		(dataBGF, dataBGSpect) = calculatePowerSpectrum(cubeOutside)
+
+		del hammingWindow1D, hammingWindow2D, hammingWindow3D
+
+		m, s = divmod(time() - tStart, 60)
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)					
+
+		#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
+		# 	This loop will stop when the user does NOT change the elbow in the interface.
+		#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
+		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
+
+			preWhiteningResult = preWhitenCube( n = cubeSize,			
+									vxSize        = vxSize,
+									elbowAngstrom = newElbowAngstrom,
+									rampWeight    = newRampWeight,
+									dataF         = dataF,
+									dataBGF       = dataBGF,
+									dataBGSpect   = dataBGSpect)
+
+			cubeInsidePW = preWhiteningResult['dataPW']
+			
+			oldElbowAngstrom = newElbowAngstrom
+			oldRampWeight    = newRampWeight
+
+			newElbowAngstrom, newRampWeight = displayPreWhitening(
+								elbowAngstrom = oldElbowAngstrom,
+								rampWeight    = oldRampWeight,
+								dataSpect     = dataSpect,
+								dataBGSpect   = dataBGSpect,
+								peval         = preWhiteningResult['peval'],
+								dataPWSpect   = preWhiteningResult['dataPWSpect'],
+								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
+								vxSize 		  = vxSize,
+								dataSlice     = cubeInside[int(cubeSize/2),:,:], 
+								dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
+								)
+
+
+		print '\n= Pre-whitening the Full Volume (this might take a bit of time...)'
+		tStart = time()
+
+		# Apply the pre-whitening filter on the full-sized map
+		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+		if splitVolume == True:
+			(dataDiffF, dataPowerSpectrumDoff) = calculatePowerSpectrum(dataDiff)
+
+		R = createRmatrix(n)
+
+		pwFilterFinal = createPreWhiteningFilterFinal(	n = n,
+											cubeSize      = cubeSize,
+											spectrum      = dataPowerSpectrum,
+											pcoef         = preWhiteningResult['pcoef'],
+											elbowAngstrom = newElbowAngstrom,
+											rampWeight    = newRampWeight,
+											vxSize        = vxSize)
+
+		dataPW     = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataF))))
+		if splitVolume == True:
+			dataDiffPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataDiffF))))
+
+		m, s = divmod(time() - tStart, 60)
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
+
+		# Pre-whitening Results Plots
+		f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
+		f.suptitle('Pre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
+
+		vminData, vmaxData = np.min(data), np.max(data)
+		ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+		ax2.imshow(data[(4*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+		ax3.imshow(data[(5*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+		ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+
+		vminDataPW, vmaxDataPW = np.min(dataPW), np.max(dataPW)
+		ax5.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+		ax6.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+		ax7.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+		ax8.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+
+		ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+		ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+		ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
+
+		ax5.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+		ax6.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+		ax7.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+		ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
+
+		ax1.set_ylabel('Input Volume\n\n',        fontsize=14, color='#104E8B', fontweight='bold')
+		ax5.set_ylabel('Pre-whitened Volume\n\n', fontsize=14, color='#104E8B', fontweight='bold')
+
+		plt.show()	
+
+		# Set the data to be the pre-whitened volume
+		data     = dataPW
+		if splitVolume == True:
+			dataDiff = dataDiffPW
+			del dataDiffF, dataDiffPW
+		del dataF, dataPW, R	
+
+	else:
+
+		print("\n=======================================================================\n"
+				"|                                                                     |\n"
+				"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
+				"|                                                                     |\n"
+				"|                 The volume is of reasonable size.                   |\n"
+				"|                                                                     |\n"					
+				"|        ResMap will run its pre-whitening on the whole volume        |\n"
+				"|         by softly masking the background from the particle.         |\n"	
+				"|                                                                     |\n"	
+				"|               In split volume mode, ResMap will use                 |\n"
+				"|             the difference map instead of a soft mask.              |\n"	
+				"|                                                                     |\n"
+				"=======================================================================")			
+
+		if splitVolume == False:
+			print '\n= Computing Soft Mask Separating Particle from Background'
 			tStart = time()
 
-			dataMaskDistance = ndimage.morphology.distance_transform_cdt(dataMask, metric='taxicab')
+			# Dilate the mask a bit so that we don't seep into the particle when we blur it later
+			boxElement  = np.ones([5, 5, 5])
+			dilatedMask = ndimage.morphology.binary_dilation(dataMask, structure=boxElement, iterations=3)
+			dilatedMask = np.logical_and(dilatedMask, Rinside)
+
+			# Blur the mask
+			softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n)*0.02)
+
+			# Get the background
+			dataBG      = np.multiply(data,softBGmask)
+			del boxElement, dataMask, dilatedMask
 
 			m, s = divmod(time() - tStart, 60)
 			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+		else:		
+			dataBG = dataDiff
 
-			# Only need to compute largest cube in background if in single volume mode
+		print '\n= Calculating Spherically Averaged Power Spectra'
+		tStart = time()
+
+		# Calculate spectrum of input volume only if downsampled, otherwise use previous computation
+		if LPFfactor != 0.0 or n > subVolLPF:
+			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+
+		# Calculate spectrum of background volume
+		(dataBGF, dataBGSpect) = calculatePowerSpectrum(dataBG)
+		del dataBG
+
+		m, s = divmod(time() - tStart, 60)
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+		#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
+		# 	This loop will stop when the user does NOT change the elbow in the interface.
+		#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
+		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
+
 			if splitVolume == False:
-				print '\n= Computing The Largest Cube in the Background'
-				tStart = time()
-				
-				dataOutside         = np.logical_and(np.logical_not(dataMask),Rinside)
-				dataOutsideDistance = ndimage.morphology.distance_transform_cdt(dataOutside, metric='taxicab')
-
-				m, s = divmod(time() - tStart, 60)
-				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
-
-			print '\n= Extracting Cubes and Calculating Spherically Averaged Power Spectra'
-			tStart = time()
-
-			# Calculate the largest box size that can be fit 
-			if splitVolume == True:
-				# Biggest cube that fits just inside the particle
-				widthBox = np.max(dataMaskDistance) 
+				preWhiteningResult = preWhitenVolumeSoftBG(n = n,			
+										elbowAngstrom = newElbowAngstrom,
+										dataBGSpect   = dataBGSpect,
+										dataF         = dataF,
+										softBGmask    = softBGmask,
+										vxSize        = vxSize,
+										rampWeight    = newRampWeight)
 			else:
-				# Biggest cube that fits both inside and oustide the particle
-				widthBox = np.min((np.max(dataMaskDistance), np.max(dataOutsideDistance)))
-			halfWidthBox = np.floor(widthBox/2)
-			cubeSize     = 2*halfWidthBox
-
-			# Extract a cube from inside the particle
-			insideBox    = np.unravel_index(np.argmax(dataMaskDistance),(n,n,n))
-			cubeInside   = data[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
-								insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
-								insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];
-
-			if splitVolume == True:
-				# Extract the same cube from the difference map
-				cubeOutside  = dataDiff[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
-										insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
-										insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];	
-			else:
-				# Extract a cube from outside the particle
-				outsideBox   = np.unravel_index(np.argmax(dataOutsideDistance),(n,n,n))
-				cubeOutside  = data[outsideBox[0]-halfWidthBox:outsideBox[0]+halfWidthBox,
-									outsideBox[1]-halfWidthBox:outsideBox[1]+halfWidthBox,
-									outsideBox[2]-halfWidthBox:outsideBox[2]+halfWidthBox ];	
-
-			# Create a hamming window														
-			hammingWindow1D = signal.hamming(cubeSize)
-			hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
-			hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
-
-			# Multiply both cubes by the hamming window
-			cubeInside      = np.multiply(cubeInside, hammingWindow3D)
-			cubeOutside     = np.multiply(cubeOutside,hammingWindow3D)
-
-			# Calculate spectrum of inside volume
-			(dataF,   dataSpect)   = calculatePowerSpectrum(cubeInside)
-
-			# Calculate spectrum of outside volume
-			(dataBGF, dataBGSpect) = calculatePowerSpectrum(cubeOutside)
-
-			del hammingWindow1D, hammingWindow2D, hammingWindow3D
-
-			m, s = divmod(time() - tStart, 60)
-			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)					
-
-			#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
-			# 	This loop will stop when the user does NOT change the elbow in the interface.
-			#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
-			while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
-
-				preWhiteningResult = preWhitenCube( n = cubeSize,			
+				preWhiteningResult = preWhitenCube( n = n,			
 										vxSize        = vxSize,
 										elbowAngstrom = newElbowAngstrom,
 										rampWeight    = newRampWeight,
@@ -374,218 +526,63 @@ def ResMap_algorithm(**kwargs):
 										dataBGF       = dataBGF,
 										dataBGSpect   = dataBGSpect)
 
-				cubeInsidePW = preWhiteningResult['dataPW']
-				
-				oldElbowAngstrom = newElbowAngstrom
-				oldRampWeight    = newRampWeight
-
-				newElbowAngstrom, newRampWeight = displayPreWhitening(
-									elbowAngstrom = oldElbowAngstrom,
-									rampWeight    = oldRampWeight,
-									dataSpect     = dataSpect,
-									dataBGSpect   = dataBGSpect,
-									peval         = preWhiteningResult['peval'],
-									dataPWSpect   = preWhiteningResult['dataPWSpect'],
-									dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
-									vxSize 		  = vxSize,
-									dataSlice     = cubeInside[int(cubeSize/2),:,:], 
-									dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
-									)
-
-
-			print '\n= Pre-whitening the Full Volume (this might take a bit of time...)'
-			tStart = time()
-
-			# Apply the pre-whitening filter on the full-sized map
-			(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+			dataPW   = preWhiteningResult['dataPW']
 			if splitVolume == True:
-				(dataDiffF, dataPowerSpectrumDoff) = calculatePowerSpectrum(dataDiff)
+				dataBGPW = preWhiteningResult['dataBGPW']
+			
+			oldElbowAngstrom = newElbowAngstrom
+			oldRampWeight    = newRampWeight
 
-			R = createRmatrix(n)
+			newElbowAngstrom, newRampWeight = displayPreWhitening(
+								elbowAngstrom = oldElbowAngstrom,
+								rampWeight    = oldRampWeight,
+								dataSpect     = dataPowerSpectrum,
+								dataBGSpect   = dataBGSpect,
+								peval         = preWhiteningResult['peval'],
+								dataPWSpect   = preWhiteningResult['dataPWSpect'],
+								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
+								vxSize 		  = vxSize,
+								dataSlice     = data[int(n/2),:,:], 
+								dataPWSlice   = dataPW[int(n/2),:,:]
+								)
 
-			pwFilterFinal = createPreWhiteningFilterFinal(	n = n,
-												cubeSize      = cubeSize,
-												spectrum      = dataPowerSpectrum,
-												pcoef         = preWhiteningResult['pcoef'],
-												elbowAngstrom = newElbowAngstrom,
-												rampWeight    = newRampWeight,
-												vxSize        = vxSize)
+			del preWhiteningResult
 
-			dataPW     = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataF))))
-			if splitVolume == True:
-				dataDiffPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataDiffF))))
+		data     = dataPW
+		if splitVolume == True:
+			dataDiff = dataBGPW
+			del dataBGPW
+		del dataF, dataBGF, dataPW
 
-			m, s = divmod(time() - tStart, 60)
-			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
+	# else:
+	# 	estimateVarianceFromBackground = False
+	# 	print ( "=======================================================================\n"
+	# 			"|                                                                     |\n"
+	# 			"|    You have chosen to run ResMap with your own variance estimate.   |\n"
+	# 			"|                                                                     |\n"
+	# 			"|                                                                     |\n"				
+	# 			"|                  This is strongly NOT recommended.                  |\n"
+	# 			"|                                                                     |\n"
+	# 			"|                                                                     |\n"								
+	# 			"|                 The results may not make any sense                  |\n"
+	# 			"|                 and the algorithm may simply fail.                  |\n"
+	# 			"|                                                                     |\n"	
+	# 			"|                                                                     |\n"	
+	# 			"|          Please consider using ResMap's own noise estimate.         |\n"	
+	# 			"|                                                                     |\n"																	
+	# 			"=======================================================================\n")
 
-			# Pre-whitening Results Plots
-			f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
-			f.suptitle('Pre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
+	# 	crudeEstimate = np.var(data[np.logical_and(Rinside,np.logical_not(mask))])
 
-			vminData, vmaxData = np.min(data), np.max(data)
-			ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-			ax2.imshow(data[(4*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-			ax3.imshow(data[(5*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-			ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	# 	print "Crude Estimate of Noise Variance = %.6f" % crudeEstimate
 
-			vminDataPW, vmaxDataPW = np.min(dataPW), np.max(dataPW)
-			ax5.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-			ax6.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-			ax7.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-			ax8.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-
-			ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
-			ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
-			ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-			ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
-
-			ax5.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
-			ax6.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
-			ax7.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-			ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
-
-			ax1.set_ylabel('Input Volume\n\n',        fontsize=14, color='#104E8B', fontweight='bold')
-			ax5.set_ylabel('Pre-whitened Volume\n\n', fontsize=14, color='#104E8B', fontweight='bold')
-
-			plt.show()	
-
-			# Set the data to be the pre-whitened volume
-			data     = dataPW
-			if splitVolume == True:
-				dataDiff = dataDiffPW
-				del dataDiffF, dataDiffPW
-			del dataF, dataPW, R	
-
-		else:
-
-			print("\n=======================================================================\n"
-					"|                                                                     |\n"
-					"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
-					"|                                                                     |\n"
-					"|                 The volume is of reasonable size.                   |\n"
-					"|                                                                     |\n"					
-					"|        ResMap will run its pre-whitening on the whole volume        |\n"
-					"|         by softly masking the background from the particle.         |\n"	
-					"|                                                                     |\n"	
-					"|               In split volume mode, ResMap will use                 |\n"
-					"|             the difference map instead of a soft mask.              |\n"	
-					"|                                                                     |\n"
-					"=======================================================================")			
-
-			if splitVolume == False:
-				print '\n= Computing Soft Mask Separating Particle from Background'
-				tStart = time()
-
-				# Dilate the mask a bit so that we don't seep into the particle when we blur it later
-				boxElement  = np.ones([5, 5, 5])
-				dilatedMask = ndimage.morphology.binary_dilation(dataMask, structure=boxElement, iterations=3)
-				dilatedMask = np.logical_and(dilatedMask, Rinside)
-
-				# Blur the mask
-				softBGmask  = filters.gaussian_filter(np.array(np.logical_not(dilatedMask),dtype='float32'),float(n)*0.02)
-
-				# Get the background
-				dataBG      = np.multiply(data,softBGmask)
-				del boxElement, dataMask, dilatedMask
-
-				m, s = divmod(time() - tStart, 60)
-				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-			else:		
-				dataBG = dataDiff
-
-			print '\n= Calculating Spherically Averaged Power Spectra'
-			tStart = time()
-
-			# Calculate spectrum of input volume only if downsampled, otherwise use previous computation
-			if LPFfactor != 0.0 or n > subVolLPF:
-				(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
-
-			# Calculate spectrum of background volume
-			(dataBGF, dataBGSpect) = calculatePowerSpectrum(dataBG)
-			del dataBG
-
-			m, s = divmod(time() - tStart, 60)
-			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-
-			#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
-			# 	This loop will stop when the user does NOT change the elbow in the interface.
-			#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
-			while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
-
-				if splitVolume == False:
-					preWhiteningResult = preWhitenVolumeSoftBG(n = n,			
-											elbowAngstrom = newElbowAngstrom,
-											dataBGSpect   = dataBGSpect,
-											dataF         = dataF,
-											softBGmask    = softBGmask,
-											vxSize        = vxSize,
-											rampWeight    = newRampWeight)
-				else:
-					preWhiteningResult = preWhitenCube( n = n,			
-											vxSize        = vxSize,
-											elbowAngstrom = newElbowAngstrom,
-											rampWeight    = newRampWeight,
-											dataF         = dataF,
-											dataBGF       = dataBGF,
-											dataBGSpect   = dataBGSpect)
-
-				dataPW   = preWhiteningResult['dataPW']
-				if splitVolume == True:
-					dataBGPW = preWhiteningResult['dataBGPW']
-				
-				oldElbowAngstrom = newElbowAngstrom
-				oldRampWeight    = newRampWeight
-
-				newElbowAngstrom, newRampWeight = displayPreWhitening(
-									elbowAngstrom = oldElbowAngstrom,
-									rampWeight    = oldRampWeight,
-									dataSpect     = dataPowerSpectrum,
-									dataBGSpect   = dataBGSpect,
-									peval         = preWhiteningResult['peval'],
-									dataPWSpect   = preWhiteningResult['dataPWSpect'],
-									dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
-									vxSize 		  = vxSize,
-									dataSlice     = data[int(n/2),:,:], 
-									dataPWSlice   = dataPW[int(n/2),:,:]
-									)
-
-				del preWhiteningResult
-
-			data     = dataPW
-			if splitVolume == True:
-				dataDiff = dataBGPW
-				del dataBGPW
-			del dataF, dataBGF, dataPW
-
-	else:
-		estimateVarianceFromBackground = False
-		print ( "=======================================================================\n"
-				"|                                                                     |\n"
-				"|    You have chosen to run ResMap with your own variance estimate.   |\n"
-				"|                                                                     |\n"
-				"|                                                                     |\n"				
-				"|                  This is strongly NOT recommended.                  |\n"
-				"|                                                                     |\n"
-				"|                                                                     |\n"								
-				"|                 The results may not make any sense                  |\n"
-				"|                 and the algorithm may simply fail.                  |\n"
-				"|                                                                     |\n"	
-				"|                                                                     |\n"	
-				"|          Please consider using ResMap's own noise estimate.         |\n"	
-				"|                                                                     |\n"																	
-				"=======================================================================\n")
-
-		crudeEstimate = np.var(data[np.logical_and(Rinside,np.logical_not(mask))])
-
-		print "Crude Estimate of Noise Variance = %.6f" % crudeEstimate
-
-		if abs( int(np.log10(variance)) - int(np.log10(crudeEstimate)) ) > 1:
-			print("\n=======================================================================\n"
-					"|                                                                     |\n"
-					"|     It seems like your variance estimate is more than 1 order       |\n"
-					"|           of magnitude off... BE WARY of the results.               |\n"		
-					"|                                                                     |\n"																	
-					"=======================================================================\n")
+	# 	if abs( int(np.log10(variance)) - int(np.log10(crudeEstimate)) ) > 1:
+	# 		print("\n=======================================================================\n"
+	# 				"|                                                                     |\n"
+	# 				"|     It seems like your variance estimate is more than 1 order       |\n"
+	# 				"|           of magnitude off... BE WARY of the results.               |\n"		
+	# 				"|                                                                     |\n"																	
+	# 				"=======================================================================\n")
 
 	print("\n=======================================================================\n"
 			"|                                                                     |\n"
@@ -686,87 +683,85 @@ def ResMap_algorithm(**kwargs):
 		LAMBDAdiff = np.array(LAMBDAc-LAMBDA, dtype='float32')
 		del LAMBDA, LAMBDAc
 
-		if estimateVarianceFromBackground == True:
+		if splitVolume == False:
+			print 'Estimating variance from non-overlapping blocks in background...',
+			tStart = time()
 
-			if splitVolume == False:
-				print 'Estimating variance from non-overlapping blocks in background...',
-				tStart = time()
+			# Use numpy stride tricks to compute "view" into NON-overlapping
+			# blocks of 2*r+1. Does not allocate any extra memory
+			maskBGview = rolling_window(maskBG, 								
+							window=(winSize, winSize, winSize), 
+							asteps=(winSize, winSize, winSize))
 
-				# Use numpy stride tricks to compute "view" into NON-overlapping
-				# blocks of 2*r+1. Does not allocate any extra memory
-				maskBGview = rolling_window(maskBG, 								
-								window=(winSize, winSize, winSize), 
-								asteps=(winSize, winSize, winSize))
+			dataBGview = rolling_window(data, 
+							window=(winSize, winSize, winSize), 
+							asteps=(winSize, winSize, winSize))
 
-				dataBGview = rolling_window(data, 
-								window=(winSize, winSize, winSize), 
-								asteps=(winSize, winSize, winSize))
+			# Find blocks within maskBG that are all 1s (i.e. only contain background voxels)
+			blockMaskBG = np.squeeze(np.apply_over_axes(np.all, maskBGview, [3,4,5]))
 
-				# Find blocks within maskBG that are all 1s (i.e. only contain background voxels)
-				blockMaskBG = np.squeeze(np.apply_over_axes(np.all, maskBGview, [3,4,5]))
+			# Get the i, j, k indices where the blocks are all 1s
+			blockMaskBGindex = np.array(np.where(blockMaskBG))
 
-				# Get the i, j, k indices where the blocks are all 1s
-				blockMaskBGindex = np.array(np.where(blockMaskBG))
+			dataBGcube = np.zeros(numberOfPoints,			dtype='float32')
+			WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
 
-				dataBGcube = np.zeros(numberOfPoints,			dtype='float32')
-				WRSSBG     = np.zeros(blockMaskBGindex.shape[1],dtype='float32')
+			# For each block, use 3D steerable model to estimate sigma^2
+			for idx in range(blockMaskBGindex.shape[1]):
+				i, j, k     = blockMaskBGindex[:,idx]
+				dataBGcube  = dataBGview[i,j,k,...].flatten()
+				dataBGcube  = dataBGcube - np.mean(dataBGcube)
+				WRSSBG[idx] = np.vdot(dataBGcube, np.dot(LAMBDAd, dataBGcube))
+			WRSSBG = WRSSBG/np.trace(LAMBDAd)
 
-				# For each block, use 3D steerable model to estimate sigma^2
-				for idx in range(blockMaskBGindex.shape[1]):
-					i, j, k     = blockMaskBGindex[:,idx]
-					dataBGcube  = dataBGview[i,j,k,...].flatten()
-					dataBGcube  = dataBGcube - np.mean(dataBGcube)
-					WRSSBG[idx] = np.vdot(dataBGcube, np.dot(LAMBDAd, dataBGcube))
-				WRSSBG = WRSSBG/np.trace(LAMBDAd)
+			# Estimate variance as mean of sigma^2's in each block
+			variance = np.mean(WRSSBG)
 
-				# Estimate variance as mean of sigma^2's in each block
-				variance = np.mean(WRSSBG)
+			print 'done.'
+			m, s = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+			del maskBGview, dataBGview, blockMaskBG
+			print "variance = %.6f" % variance
 
-				print 'done.'
-				m, s = divmod(time() - tStart, 60)
-				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-				del maskBGview, dataBGview, blockMaskBG
-				print "variance = %.6f" % variance
+		else:
+			print 'Estimating variance from non-overlapping blocks from difference map...',
+			tStart = time()
 
-			else:
-				print 'Estimating variance from non-overlapping blocks from difference map...',
-				tStart = time()
+			# Use numpy stride tricks to compute "view" into NON-overlapping
+			# blocks of 2*r+1. Does not allocate any extra memory
+			maskParticleview = rolling_window(maskParticle, 								
+									window=(winSize, winSize, winSize), 
+									asteps=(winSize, winSize, winSize))
 
-				# Use numpy stride tricks to compute "view" into NON-overlapping
-				# blocks of 2*r+1. Does not allocate any extra memory
-				maskParticleview = rolling_window(maskParticle, 								
-										window=(winSize, winSize, winSize), 
-										asteps=(winSize, winSize, winSize))
+			dataDiffview = rolling_window(dataDiff, 
+									window=(winSize, winSize, winSize), 
+									asteps=(winSize, winSize, winSize))
 
-				dataDiffview = rolling_window(dataDiff, 
-										window=(winSize, winSize, winSize), 
-										asteps=(winSize, winSize, winSize))
+			# Find blocks within maskParticleview that are all 1s
+			blockMaskParticle = np.squeeze(np.apply_over_axes(np.all, maskParticleview, [3,4,5]))
 
-				# Find blocks within maskParticleview that are all 1s
-				blockMaskParticle = np.squeeze(np.apply_over_axes(np.all, maskParticleview, [3,4,5]))
+			# Get the i, j, k indices where the blocks are all 1s
+			blockMaskParticleindex = np.array(np.where(blockMaskParticle))
 
-				# Get the i, j, k indices where the blocks are all 1s
-				blockMaskParticleindex = np.array(np.where(blockMaskParticle))
+			dataDiffcube = np.zeros(numberOfPoints,			         dtype='float32')
+			WRSSDiff     = np.zeros(blockMaskParticleindex.shape[1], dtype='float32')
 
-				dataDiffcube = np.zeros(numberOfPoints,			         dtype='float32')
-				WRSSDiff     = np.zeros(blockMaskParticleindex.shape[1], dtype='float32')
+			# For each block, use 3D steerable model to estimate sigma^2
+			for idx in range(blockMaskParticleindex.shape[1]):
+				i, j, k       = blockMaskParticleindex[:,idx]
+				dataDiffcube  = dataDiffview[i,j,k,...].flatten()
+				dataDiffcube  = dataDiffcube - np.mean(dataDiffcube)
+				WRSSDiff[idx] = np.vdot(dataDiffcube, np.dot(LAMBDAd, dataDiffcube))
+			WRSSDiff = WRSSDiff/np.trace(LAMBDAd)
 
-				# For each block, use 3D steerable model to estimate sigma^2
-				for idx in range(blockMaskParticleindex.shape[1]):
-					i, j, k       = blockMaskParticleindex[:,idx]
-					dataDiffcube  = dataDiffview[i,j,k,...].flatten()
-					dataDiffcube  = dataDiffcube - np.mean(dataDiffcube)
-					WRSSDiff[idx] = np.vdot(dataDiffcube, np.dot(LAMBDAd, dataDiffcube))
-				WRSSDiff = WRSSDiff/np.trace(LAMBDAd)
+			# Estimate variance as mean of sigma^2's in each block
+			variance = np.mean(WRSSDiff)
 
-				# Estimate variance as mean of sigma^2's in each block
-				variance = np.mean(WRSSDiff)
-
-				print 'done.'
-				m, s = divmod(time() - tStart, 60)
-				print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-				del maskParticleview, dataDiffview, blockMaskParticle
-				print "variance = %.6f" % variance
+			print 'done.'
+			m, s = divmod(time() - tStart, 60)
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+			del maskParticleview, dataDiffview, blockMaskParticle
+			print "variance = %.6f" % variance
 
 		## Compute Likelihood Ratio Statistic
 
