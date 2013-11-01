@@ -111,7 +111,8 @@ def ResMap_algorithm(**kwargs):
 	# Check for voxel size (really shouldn't ever happen)
 	if vxSize == 0.0:
 		print "There is a serious problem with the voxel size. Aborting."
-		exit(1) 		
+		exit(1) 
+	vxSizeOrig = vxSize		
 
 	# Extract volume(s) from input MRC file(s)
 	splitVolume = False
@@ -224,7 +225,7 @@ def ResMap_algorithm(**kwargs):
 	else:
 		print '  inputMap1:\t%s' 		% inputFileName1
 		print '  inputMap2:\t%s' 		% inputFileName2
-	print '  vxSize:\t%.2f' 		% vxSize
+	print '  vxSize:\t%.2f' 		% vxSizeOrig
 	print '  pValue:\t%.2f'			% pValue
 	print '  minRes:\t%.2f' 		% minRes
 	print '  maxRes:\t%.2f'   		% maxRes
@@ -554,36 +555,6 @@ def ResMap_algorithm(**kwargs):
 			del dataBGPW
 		del dataF, dataBGF, dataPW
 
-	# else:
-	# 	estimateVarianceFromBackground = False
-	# 	print ( "=======================================================================\n"
-	# 			"|                                                                     |\n"
-	# 			"|    You have chosen to run ResMap with your own variance estimate.   |\n"
-	# 			"|                                                                     |\n"
-	# 			"|                                                                     |\n"				
-	# 			"|                  This is strongly NOT recommended.                  |\n"
-	# 			"|                                                                     |\n"
-	# 			"|                                                                     |\n"								
-	# 			"|                 The results may not make any sense                  |\n"
-	# 			"|                 and the algorithm may simply fail.                  |\n"
-	# 			"|                                                                     |\n"	
-	# 			"|                                                                     |\n"	
-	# 			"|          Please consider using ResMap's own noise estimate.         |\n"	
-	# 			"|                                                                     |\n"																	
-	# 			"=======================================================================\n")
-
-	# 	crudeEstimate = np.var(data[np.logical_and(Rinside,np.logical_not(mask))])
-
-	# 	print "Crude Estimate of Noise Variance = %.6f" % crudeEstimate
-
-	# 	if abs( int(np.log10(variance)) - int(np.log10(crudeEstimate)) ) > 1:
-	# 		print("\n=======================================================================\n"
-	# 				"|                                                                     |\n"
-	# 				"|     It seems like your variance estimate is more than 1 order       |\n"
-	# 				"|           of magnitude off... BE WARY of the results.               |\n"		
-	# 				"|                                                                     |\n"																	
-	# 				"=======================================================================\n")
-
 	print("\n=======================================================================\n"
 			"|                                                                     |\n"
 			"|                     ResMap Computation BEGINS                       |\n"
@@ -601,7 +572,7 @@ def ResMap_algorithm(**kwargs):
 		# Calculate mask of background voxels within Rinside sphere but outside of particle mask
 		maskBG = Rinside-mask
 	else:
-		maskParticle = Rinside
+		maskParticle = mask
 
 	# Continue testing larger and larger scales as long as there is "moreToProcess" (see below)
 	moreToProcess = True
