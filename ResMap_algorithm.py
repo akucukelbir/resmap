@@ -323,6 +323,13 @@ def ResMap_algorithm(**kwargs):
 
 		# Extract a cube from inside the particle
 		insideBox    = np.unravel_index(np.argmax(dataMaskDistance),(n,n,n))
+
+		# HACK: Make sure indices are cubeSize away from the edges
+		insideBox = np.maximum(insideBox,[cubeSize, cubeSize, cubeSize])
+		insideBox = np.minimum(insideBox,[n-cubeSize, n-cubeSize, n-cubeSize])
+		# insideBox += cubeSize*np.less(insideBox, cubeSize)
+		# insideBox -= cubeSize*np.greater(insideBox, n-cubeSize)
+
 		cubeInside   = data[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
 							insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
 							insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];

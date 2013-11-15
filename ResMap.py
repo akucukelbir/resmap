@@ -358,7 +358,7 @@ class ResMapApp(object):
 				showerror("Check Inputs", "'voxelSize' is not a valid number. Please input a valid voxel size in Angstroms.")
 				return
 
-		if vxSize <= 0:
+		if vxSize <= 0.0:
 			showerror("Check Inputs", "'voxelSize' is not a positive number. Please input a positive voxel size in Angstroms.")
 			return
 
@@ -490,7 +490,7 @@ class ResMapApp(object):
 if __name__ == '__main__':
 	
 	global version
-	version = "1.1.3"
+	version = "1.1.4"
 
 	args = docopt(__doc__, version=version)
 
@@ -527,13 +527,14 @@ if __name__ == '__main__':
 			inputFileName2 = os.path.normpath(os.path.join(os.getcwd(),args['INPUT2']))	
 
 		# --vxSize
-		if args['--vxSize'] != 0.0:	# Only grab the vxSize if it is inputted
+		if float(args['--vxSize']) > 0.0:	# Only grab the vxSize if it is inputted
 			try:
 				vxSize = float(args['--vxSize'])
 			except:
 				exit("The voxel size (--vxSize) is not a valid floating point number.")
 
 		if vxSize <= 0.0:
+			print 'vxSize:\t%.2f' 		% vxSize
 			exit("The voxel size is not a positive number.")
 
 		# --pVal
