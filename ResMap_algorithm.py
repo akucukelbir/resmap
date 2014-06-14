@@ -1,6 +1,6 @@
 '''
 ResMap_algorithm: module containing main local resolution 3D algorithm. (Alp Kucukelbir, 2013)
-             
+
 Description of functions:
     ResMap_algorithm: Compute the local resolution map of a density map
 
@@ -36,7 +36,7 @@ def ResMap_algorithm(**kwargs):
 	'''
 	ResMap_algorithm
 
-	The procedure will (coarsely speaking) do the following things:	
+	The procedure will (coarsely speaking) do the following things:
 		1. Grab the volume from the the MRC data structure (class)
 		2. Calculate a mask that separates the particle from the background
 		3. Pre-whiten the volume, if necessary
@@ -48,29 +48,29 @@ def ResMap_algorithm(**kwargs):
 		9. Repeat until max resolution is reached or (heuristically) most points in mask are assigned
 		10. Write result out to a MRC volume
 
-	Required Parameters 
+	Required Parameters
 	----------
 	inputFileName: string variable pointing to density map to analyze
 	      	 data: density map loaded as a numpy array
 	       vxSize: the voxel spacing for the density map (in Angstrom)
 	       pValue: the desired significance level (usually 0.05)
 
-	Optional Parameters 
+	Optional Parameters
 	----------
-	  minRes: starting resolution 
-	  maxRes: maximum resolution to consider 
-	 stepRes: step size for resolution queries 
+	  minRes: starting resolution
+	  maxRes: maximum resolution to consider
+	 stepRes: step size for resolution queries
 	dataMask: mask loaded as a numpy array
 
-	Assumptions 
+	Assumptions
 	-------
-	ResMap assumes that the density map being analyzed has not been filtered in any way, and that 
-	some reasonable pre-whitening has been applied, such that the noise spectrum of the map is 
+	ResMap assumes that the density map being analyzed has not been filtered in any way, and that
+	some reasonable pre-whitening has been applied, such that the noise spectrum of the map is
 	relatively white, at least towards the Nyquist end of the spectrum.
 
 	ResMap now provides some built-in pre-whitening tools.
 
-	Returns 
+	Returns
 	-------
 	Writes out a new MRC volume in the same folder as the input MRC volume with '_resmap' appended to
 	the file name. Values are in Angstrom and represent the local resolution assigned to each voxel.
@@ -85,7 +85,7 @@ def ResMap_algorithm(**kwargs):
 	epsilon = 1e-20
 
 	debugMode = False
-	
+
 	## Process inputs to function
 	print '\n\n= Reading Input Parameters'
 	tStart = time()
@@ -94,25 +94,25 @@ def ResMap_algorithm(**kwargs):
 	inputFileName1   = kwargs.get('inputFileName1', None)
 	inputFileName2   = kwargs.get('inputFileName2', None)
 	dataMRC          = kwargs.get('data',  0)
-	dataMRC1         = kwargs.get('data1', 0)	
+	dataMRC1         = kwargs.get('data1', 0)
 	dataMRC2         = kwargs.get('data2', 0)
-		
+
 	vxSize           = kwargs.get('vxSize',   0.0 )
 	pValue           = kwargs.get('pValue',   0.05)
-	minRes           = kwargs.get('minRes',   0.0 ) 
+	minRes           = kwargs.get('minRes',   0.0 )
 	maxRes           = kwargs.get('maxRes',   0.0 )
-	stepRes          = kwargs.get('stepRes',  1.0 ) 
+	stepRes          = kwargs.get('stepRes',  1.0 )
 	dataMask         = kwargs.get('dataMask', 0)
-	
+
 	graphicalOutput  = bool(kwargs.get('graphicalOutput', False))
 	chimeraLaunch    = bool(kwargs.get('chimeraLaunch', False))
 	noiseDiagnostics = bool(kwargs.get('noiseDiagnostics', False))
- 
+
 	# Check for voxel size (really shouldn't ever happen)
 	if vxSize == 0.0:
 		print "There is a serious problem with the voxel size. Aborting."
-		exit(1) 
-	vxSizeOrig = vxSize		
+		exit(1)
+	vxSizeOrig = vxSize
 
 	# Extract volume(s) from input MRC file(s)
 	splitVolume = False
@@ -127,7 +127,7 @@ def ResMap_algorithm(**kwargs):
 
 	else:
 		print "There is a serious problem with loading files. Aborting."
-		exit(1) 
+		exit(1)
 
 	# Grab the volume size (assumed to be a cube)
 	n = data.shape[0]
@@ -149,8 +149,8 @@ def ResMap_algorithm(**kwargs):
 				"|         ResMap will run its low-pass filtering test on a            |\n"
 				"|       cube of size 160 taken from the center of the volume.         |\n"
 				"|                                                                     |\n"
-				"|        This is usually not a problem, but please notify the         |\n"				
-				"|                  authors if something goes awry.                    |\n"					
+				"|        This is usually not a problem, but please notify the         |\n"
+				"|                  authors if something goes awry.                    |\n"
 				"|                                                                     |\n"
 				"=======================================================================\n")
 
@@ -210,7 +210,7 @@ def ResMap_algorithm(**kwargs):
 	# Calculate min res
 	if minRes <= (2.2*vxSize):
 		minRes = round((2.2*vxSize)/0.1)*0.1 # round to the nearest 0.1
-	currentRes = minRes 
+	currentRes = minRes
 
 	# Calculate max res
 	if maxRes == 0.0:
@@ -234,7 +234,7 @@ def ResMap_algorithm(**kwargs):
 
 	print '\n= Computing Mask Separating Particle from Background'
 	tStart = time()
-	
+
 	# Update n in case downsampling was done above
 	n = data.shape[0]
 
@@ -252,12 +252,19 @@ def ResMap_algorithm(**kwargs):
 	else:
 		if LPFfactor == 0.0:
 			dataMask = np.array(dataMask.matrix, dtype='bool')
-		else:	# Low pass filter the given mask
+		else:	# Interpolate the given mask
 			dataMask = ndimage.interpolation.zoom(dataMask.matrix, LPFfactor, mode='reflect')
 			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)	# kernel size 2% of n
 			dataMask = dataMask > np.max(dataMask)*5e-2					# threshold at 5% of max value
 
-	mask         = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
+	if splitVolume == False:
+		mask = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
+	else:
+		tmp_box = np.zeros((n,n,n), dtype='bool')	# make cube that goes to 9 voxels to the edge
+		tmp_box[9:-9,9:-9,9:-9] = True 						# | this is a hack for Liz Kellog's case
+		mask = np.bitwise_and(dataMask, tmp_box)
+		del tmp_box
+
 	oldSumOfMask = np.sum(mask)
 
 	m, s = divmod(time() - tStart, 60)
@@ -280,15 +287,15 @@ def ResMap_algorithm(**kwargs):
 				"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
 				"|                                                                     |\n"
 				"|                    The volume is quite large.                       |\n"
-				"|                                                                     |\n"					
+				"|                                                                     |\n"
 				"|          ResMap will run its pre-whitening on the largest           |\n"
-				"|     cube it can fit within the particle and in the background.      |\n"	
-				"|                                                                     |\n"	
+				"|     cube it can fit within the particle and in the background.      |\n"
+				"|                                                                     |\n"
 				"|          In split volume mode, ResMap will only fit a cube          |\n"
-				"|  inside the particle and use the difference map as the background.  |\n"		
+				"|  inside the particle and use the difference map as the background.  |\n"
 				"|                                                                     |\n"
 				"=======================================================================\n")
-		
+
 		print '\n= Computing The Largest Cube Within the Particle'
 		tStart = time()
 
@@ -301,20 +308,20 @@ def ResMap_algorithm(**kwargs):
 		if splitVolume == False:
 			print '\n= Computing The Largest Cube in the Background'
 			tStart = time()
-			
+
 			dataOutside         = np.logical_and(np.logical_not(dataMask),Rinside)
 			dataOutsideDistance = ndimage.morphology.distance_transform_cdt(dataOutside, metric='taxicab')
 
 			m, s = divmod(time() - tStart, 60)
-			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
+			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 		print '\n= Extracting Cubes and Calculating Spherically Averaged Power Spectra'
 		tStart = time()
 
-		# Calculate the largest box size that can be fit 
+		# Calculate the largest box size that can be fit
 		if splitVolume == True:
 			# Biggest cube that fits just inside the particle
-			widthBox = np.max(dataMaskDistance) 
+			widthBox = np.max(dataMaskDistance)
 		else:
 			# Biggest cube that fits both inside and oustide the particle
 			widthBox = np.min((np.max(dataMaskDistance), np.max(dataOutsideDistance)))
@@ -338,15 +345,15 @@ def ResMap_algorithm(**kwargs):
 			# Extract the same cube from the difference map
 			cubeOutside  = dataDiff[insideBox[0]-halfWidthBox:insideBox[0]+halfWidthBox,
 									insideBox[1]-halfWidthBox:insideBox[1]+halfWidthBox,
-									insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];	
+									insideBox[2]-halfWidthBox:insideBox[2]+halfWidthBox ];
 		else:
 			# Extract a cube from outside the particle
 			outsideBox   = np.unravel_index(np.argmax(dataOutsideDistance),(n,n,n))
 			cubeOutside  = data[outsideBox[0]-halfWidthBox:outsideBox[0]+halfWidthBox,
 								outsideBox[1]-halfWidthBox:outsideBox[1]+halfWidthBox,
-								outsideBox[2]-halfWidthBox:outsideBox[2]+halfWidthBox ];	
+								outsideBox[2]-halfWidthBox:outsideBox[2]+halfWidthBox ];
 
-		# Create a hamming window														
+		# Create a hamming window
 		hammingWindow1D = signal.hamming(cubeSize)
 		hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
 		hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
@@ -364,14 +371,14 @@ def ResMap_algorithm(**kwargs):
 		del hammingWindow1D, hammingWindow2D, hammingWindow3D
 
 		m, s = divmod(time() - tStart, 60)
-		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)					
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 		#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
 		# 	This loop will stop when the user does NOT change the elbow in the interface.
 		#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
 		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
 
-			preWhiteningResult = preWhitenCube( n = cubeSize,			
+			preWhiteningResult = preWhitenCube( n = cubeSize,
 									vxSize        = vxSize,
 									elbowAngstrom = newElbowAngstrom,
 									rampWeight    = newRampWeight,
@@ -380,7 +387,7 @@ def ResMap_algorithm(**kwargs):
 									dataBGSpect   = dataBGSpect)
 
 			cubeInsidePW = preWhiteningResult['dataPW']
-			
+
 			oldElbowAngstrom = newElbowAngstrom
 			oldRampWeight    = newRampWeight
 
@@ -393,7 +400,7 @@ def ResMap_algorithm(**kwargs):
 								dataPWSpect   = preWhiteningResult['dataPWSpect'],
 								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
 								vxSize 		  = vxSize,
-								dataSlice     = cubeInside[int(cubeSize/2),:,:], 
+								dataSlice     = cubeInside[int(cubeSize/2),:,:],
 								dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
 								)
 
@@ -421,7 +428,7 @@ def ResMap_algorithm(**kwargs):
 			dataDiffPW = np.real(fftpack.ifftn(fftpack.ifftshift(np.multiply(pwFilterFinal['pWfilter'],dataDiffF))))
 
 		m, s = divmod(time() - tStart, 60)
-		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)			
+		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 		# Pre-whitening Results Plots
 		f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
@@ -442,24 +449,24 @@ def ResMap_algorithm(**kwargs):
 		ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
 		ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
 		ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
+		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 
 		ax5.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
 		ax6.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
 		ax7.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-		ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')	
+		ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 
 		ax1.set_ylabel('Input Volume\n\n',        fontsize=14, color='#104E8B', fontweight='bold')
 		ax5.set_ylabel('Pre-whitened Volume\n\n', fontsize=14, color='#104E8B', fontweight='bold')
 
-		plt.show()	
+		plt.show()
 
 		# Set the data to be the pre-whitened volume
 		data     = dataPW
 		if splitVolume == True:
 			dataDiff = dataDiffPW
 			del dataDiffF, dataDiffPW
-		del dataF, dataPW, R	
+		del dataF, dataPW, R
 
 	else:
 
@@ -468,14 +475,14 @@ def ResMap_algorithm(**kwargs):
 				"|                 ResMap Pre-Whitening (beta) Tool                    |\n"
 				"|                                                                     |\n"
 				"|                 The volume is of reasonable size.                   |\n"
-				"|                                                                     |\n"					
-				"|        ResMap will run its pre-whitening on the whole volume        |\n"
-				"|         by softly masking the background from the particle.         |\n"	
-				"|                                                                     |\n"	
-				"|               In split volume mode, ResMap will use                 |\n"
-				"|             the difference map instead of a soft mask.              |\n"	
 				"|                                                                     |\n"
-				"=======================================================================")			
+				"|        ResMap will run its pre-whitening on the whole volume        |\n"
+				"|         by softly masking the background from the particle.         |\n"
+				"|                                                                     |\n"
+				"|               In split volume mode, ResMap will use                 |\n"
+				"|             the difference map instead of a soft mask.              |\n"
+				"|                                                                     |\n"
+				"=======================================================================")
 
 		if splitVolume == False:
 			print '\n= Computing Soft Mask Separating Particle from Background'
@@ -495,7 +502,7 @@ def ResMap_algorithm(**kwargs):
 
 			m, s = divmod(time() - tStart, 60)
 			print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
-		else:		
+		else:
 			dataBG = dataDiff
 
 		print '\n= Calculating Spherically Averaged Power Spectra'
@@ -518,7 +525,7 @@ def ResMap_algorithm(**kwargs):
 		while newElbowAngstrom != oldElbowAngstrom or oldRampWeight != newRampWeight:
 
 			if splitVolume == False:
-				preWhiteningResult = preWhitenVolumeSoftBG(n = n,			
+				preWhiteningResult = preWhitenVolumeSoftBG(n = n,
 										elbowAngstrom = newElbowAngstrom,
 										dataBGSpect   = dataBGSpect,
 										dataF         = dataF,
@@ -526,7 +533,7 @@ def ResMap_algorithm(**kwargs):
 										vxSize        = vxSize,
 										rampWeight    = newRampWeight)
 			else:
-				preWhiteningResult = preWhitenCube( n = n,			
+				preWhiteningResult = preWhitenCube( n = n,
 										vxSize        = vxSize,
 										elbowAngstrom = newElbowAngstrom,
 										rampWeight    = newRampWeight,
@@ -537,7 +544,7 @@ def ResMap_algorithm(**kwargs):
 			dataPW   = preWhiteningResult['dataPW']
 			if splitVolume == True:
 				dataBGPW = preWhiteningResult['dataBGPW']
-			
+
 			oldElbowAngstrom = newElbowAngstrom
 			oldRampWeight    = newRampWeight
 
@@ -550,7 +557,7 @@ def ResMap_algorithm(**kwargs):
 								dataPWSpect   = preWhiteningResult['dataPWSpect'],
 								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
 								vxSize 		  = vxSize,
-								dataSlice     = data[int(n/2),:,:], 
+								dataSlice     = data[int(n/2),:,:],
 								dataPWSlice   = dataPW[int(n/2),:,:]
 								)
 
@@ -566,7 +573,7 @@ def ResMap_algorithm(**kwargs):
 			"|                                                                     |\n"
 			"|                     ResMap Computation BEGINS                       |\n"
 			"|                                                                     |\n"
-			"=======================================================================")	
+			"=======================================================================")
 
 	# Initialize the ResMap result volume
 	resTOTAL = np.zeros_like(data)
@@ -589,7 +596,7 @@ def ResMap_algorithm(**kwargs):
 		# Compute window size and form steerable bases
 		r       = np.ceil(0.5*currentRes/vxSize)			# number of pixels around center
 		a       = (2*np.pi/currentRes) * np.sqrt(2.0/5)		# scaling factor so that peak occurs at 1/currentRes Angstroms
-		winSize = 2*r+1		
+		winSize = 2*r+1
 		print "winSize = %.2f" % winSize
 
 		if debugMode:
@@ -609,12 +616,12 @@ def ResMap_algorithm(**kwargs):
 		# Define range of x, y, z for steerable bases
 		[x,y,z] = a*np.mgrid[	-r*vxSize:r*vxSize:complex(0,winSize),
 								-r*vxSize:r*vxSize:complex(0,winSize),
-								-r*vxSize:r*vxSize:complex(0,winSize) ]		
+								-r*vxSize:r*vxSize:complex(0,winSize) ]
 		dirs    = make3DsteerableDirections(x, y, z)
 
 		# Define Gaussian kernel
 		kernel     = np.exp(-1/2*(x**2 + y**2 + z**2)).flatten()
-		kernelSqrt = np.sqrt(kernel)  
+		kernelSqrt = np.sqrt(kernel)
 		kernelSum  = kernel.sum()
 		W          = np.diag(kernel)
 		del (x,y,z)
@@ -623,7 +630,7 @@ def ResMap_algorithm(**kwargs):
 		numberOfPoints = kernel.size
 		numberOfBases  = dirs.shape[3] + 1
 
-		# Form matrix of Hermite polynomials 
+		# Form matrix of Hermite polynomials
 		A = np.zeros([numberOfPoints, numberOfBases])
 		A[:,0] = np.ones_like(kernel)
 
@@ -637,7 +644,7 @@ def ResMap_algorithm(**kwargs):
 		for i in range(6,16):
 			tmp = dirs[:,:,:,i]
 			tmp = tmp.flatten()
-			A[:,i+1] = tmp**3 - 2.254*tmp    
+			A[:,i+1] = tmp**3 - 2.254*tmp
 
 		# Form matrix of just the constant term
 		Ac = np.zeros([numberOfPoints, 1])
@@ -648,11 +655,11 @@ def ResMap_algorithm(**kwargs):
 		Hd = np.dot(Ad, np.dot(np.linalg.pinv(np.dot(np.diag(kernelSqrt),Ad)), np.diag(kernelSqrt)))
 		LAMBDAd = W-np.dot(W,Hd)
 
-		# Invert weighted A matrix via SVD	
+		# Invert weighted A matrix via SVD
 		H = np.dot(A, np.dot(np.linalg.pinv(np.dot(np.diag(kernelSqrt),A)), np.diag(kernelSqrt)))
 
 		# Invert weighted Ac matrix analytically
-		Ack = np.dot(np.diag(kernelSqrt),Ac)	
+		Ack = np.dot(np.diag(kernelSqrt),Ac)
 		Hc  = np.dot(Ac, np.dot(Ack.T/(np.linalg.norm(Ack)**2), np.diag(kernelSqrt)))
 
 		# Create LAMBDA matrices that correspond to WRSS = Y^T*LAMBDA*Y
@@ -667,12 +674,12 @@ def ResMap_algorithm(**kwargs):
 
 			# Use numpy stride tricks to compute "view" into NON-overlapping
 			# blocks of 2*r+1. Does not allocate any extra memory
-			maskBGview = rolling_window(maskBG, 								
-							window=(winSize, winSize, winSize), 
+			maskBGview = rolling_window(maskBG,
+							window=(winSize, winSize, winSize),
 							asteps=(winSize, winSize, winSize))
 
-			dataBGview = rolling_window(data, 
-							window=(winSize, winSize, winSize), 
+			dataBGview = rolling_window(data,
+							window=(winSize, winSize, winSize),
 							asteps=(winSize, winSize, winSize))
 
 			# Find blocks within maskBG that are all 1s (i.e. only contain background voxels)
@@ -707,12 +714,12 @@ def ResMap_algorithm(**kwargs):
 
 			# Use numpy stride tricks to compute "view" into NON-overlapping
 			# blocks of 2*r+1. Does not allocate any extra memory
-			maskParticleview = rolling_window(maskParticle, 								
-									window=(winSize, winSize, winSize), 
+			maskParticleview = rolling_window(maskParticle,
+									window=(winSize, winSize, winSize),
 									asteps=(winSize, winSize, winSize))
 
-			dataDiffview = rolling_window(dataDiff, 
-									window=(winSize, winSize, winSize), 
+			dataDiffview = rolling_window(dataDiff,
+									window=(winSize, winSize, winSize),
 									asteps=(winSize, winSize, winSize))
 
 			# Find blocks within maskParticleview that are all 1s
@@ -754,13 +761,13 @@ def ResMap_algorithm(**kwargs):
 		# Calculate i, j, k indices where particle mask is 1
 		indexVec = np.array(np.where(mask))
 
-		# Adjust i, j, k indices to take into account 'r'-wide padding 
+		# Adjust i, j, k indices to take into account 'r'-wide padding
 		# due to taking overlapping blocks using 'rolling_window' function
-		indexVecView = indexVec - int(r)	
-		
+		indexVecView = indexVec - int(r)
+
 		dataCube = np.zeros(numberOfPoints,		dtype='float32')
 		WRSSdiff = np.zeros(indexVec.shape[1],	dtype='float32')
-		
+
 		maxIdx = indexVecView.shape[1]
 		progressBarIdx = int(maxIdx/100)
 		# Iterate over all points where particle mask is 1
@@ -852,7 +859,7 @@ def ResMap_algorithm(**kwargs):
 
 		if currentRes >= maxRes:
 			print 'We have reached MaxRes = %.2f.' % maxRes
-			moreToProcess = False		
+			moreToProcess = False
 
 		# Update current resolution
 		currentRes += stepRes
@@ -861,7 +868,7 @@ def ResMap_algorithm(**kwargs):
 	# Set all voxels that were outside of the mask or that failed all resolution tests to 100 A
 	zeroVoxels = (resTOTAL==0)
 	resTOTAL[zeroVoxels] = 100
-	resTOTALma  = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)	
+	resTOTALma  = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)
 
 	# Print results
 	print "\n  MEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
@@ -876,7 +883,7 @@ def ResMap_algorithm(**kwargs):
 
 	old_coordinates = np.mgrid[	0:n-1:complex(0,old_n),
 								0:n-1:complex(0,old_n),
-								0:n-1:complex(0,old_n) ]		
+								0:n-1:complex(0,old_n) ]
 
 	# Up-sample the resulting resolution map if necessary
 	if LPFfactor > 0:
@@ -884,7 +891,7 @@ def ResMap_algorithm(**kwargs):
 		resTOTAL[resTOTAL <= minRes] = minRes
 		resTOTAL[resTOTAL > currentRes] = 100
 
-		resTOTALma = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)	
+		resTOTALma = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)
 
 	# Write results out as MRC volume
 	if splitVolume == True:
@@ -900,7 +907,7 @@ def ResMap_algorithm(**kwargs):
 	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
-	
+
 	if splitVolume == True:
 		chimeraScriptFileName = createChimeraScript(inputFileName1, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
 	else:
@@ -941,13 +948,13 @@ def ResMap_algorithm(**kwargs):
 		ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
 		ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
 		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
-	 
+
 		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
 		f2.suptitle('Slices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
 		# ax21.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest") 
+		# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 		vminRes, vmaxRes = minRes, maxRes
 		im = ax21.imshow(resTOTALma[int(3*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 		ax22.imshow(     resTOTALma[int(4*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
@@ -958,7 +965,7 @@ def ResMap_algorithm(**kwargs):
 		ax22.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
 		ax23.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
 		ax24.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
-		
+
 		cax = f2.add_axes([0.9, 0.1, 0.03, 0.8])
 		f2.colorbar(im, cax=cax)
 
@@ -966,7 +973,7 @@ def ResMap_algorithm(**kwargs):
 		f3   = plt.figure()
 		f3.suptitle('Histogram of ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
 		axf3 = f3.add_subplot(111)
-		
+
 		axf3.bar(range(len(resHisto)), resHisto.values(), align='center')
 		axf3.set_xlabel('Resolution (Angstroms)')
 		axf3.set_xticks(range(len(resHisto)))
@@ -977,4 +984,4 @@ def ResMap_algorithm(**kwargs):
 
 
 
-		
+
