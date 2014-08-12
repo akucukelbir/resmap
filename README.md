@@ -1,6 +1,6 @@
-Local Resolution Map (ResMap)
+ResMap
 ==========================
-Local Resolution Map (ResMap) is a Python (NumPy/SciPy) application with a Tkinter GUI. It is a software package for computing the local resolution of 3D density maps studied in structural biology, primarily electron cryo-microscopy (cryo-EM).
+ResMap is a Python (NumPy/SciPy) application with a Tkinter GUI. It is a software package for computing the local resolution of 3D density maps studied in structural biology, primarily electron cryo-microscopy (cryo-EM).
 
 How Do I Use It?
 ----------------
@@ -20,9 +20,7 @@ You may also download the source files (Python) and run them using your own Pyth
 
 Requirements are:
 
-* Python (2.7+) [not tested on Python 3.X]
+* Python (2.7+) [not compatible with Python 3.X]
 * NumPy (1.6+)
 * SciPy (0.11+)
-* Matplotlib (1.2+) [for optional graphical output]
-
-We have also provided simulated volumes (under test-data) of a radial symmetric "chirp signal" with two levels of white and 1/f noise.
+* Matplotlib (1.2+)
