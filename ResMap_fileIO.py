@@ -1,17 +1,17 @@
 '''
-ResMap_fileIO: module containing file input/output functions. All functions have been 
-               chopped up and blended together from the excellent UCSF Chimera package. I
-               desperate hope I didn't ruin something while doing so. Seems to work... for now.
+ResMap_fileIO: module containing file input/output functions. All functions
+               have been chopped up and blended together from the excellent
+               UCSF Chimera package.
 
                LINK: www.cgl.ucsf.edu/chimera
-               
+
 Citation:
-  UCSF Chimera--a visualization system for exploratory research and analysis. 
-  Pettersen EF, Goddard TD, Huang CC, Couch GS, Greenblatt DM, Meng EC, Ferrin TE. 
+  UCSF Chimera--a visualization system for exploratory research and analysis.
+  Pettersen EF, Goddard TD, Huang CC, Couch GS, Greenblatt DM, Meng EC, Ferrin TE.
   J Comput Chem. 2004 Oct;25(13):1605-12.
 
 Description of classes:
-    MRC_Data: Read, process, and write MRC volumes.
+  MRC_Data: Read, process, and write MRC volumes.
 
 Requirements:
     numpy
@@ -33,7 +33,7 @@ class MRC_Data:
 
     import os.path
     self.name = os.path.basename(path)
-    
+
     file = open(path, 'rb')
 
     file.seek(0,2)                              # go to end of file
@@ -58,10 +58,10 @@ class MRC_Data:
 
     self.check_header_values(v, file_size, file)
     self.header = v             # For dumpmrc.py standalone program.
-    
+
     self.data_offset = file.tell()
     file.close()
-    
+
     # Axes permutation.
     # Names c,r,s refer to fast, medium, slow file matrix axes.
     # Names i,j,k refer to x,y,z spatial axes.
@@ -129,7 +129,7 @@ class MRC_Data:
         # import Matrix
         # r = Matrix.rotation_from_axis_angle((ax,ay,az), angle)                                                 # ALP
     self.rotation = r
-    
+
     self.min_intensity = v['amin']
     self.max_intensity = v['amax']
 
@@ -149,7 +149,7 @@ class MRC_Data:
     from numpy import int32, float32
     i32 = int32
     f32 = float32
-    
+
     v = {}
     v['nc'], v['nr'], v['ns'] = self.read_values(file, i32, 3)
     v['mode'] = self.read_values(file, i32, 1)
@@ -210,7 +210,7 @@ class MRC_Data:
     MODE_short  = 1
     MODE_float  = 2
     MODE_ushort  = 6            # Non-standard
-    
+
     from numpy import uint8, int8, int16, uint16, float32, dtype
     if mode == MODE_char:
       if unsigned_8_bit:
@@ -270,7 +270,7 @@ class MRC_Data:
   # ---------------------------------------------------------------------------
   #
   def read_values_from_string(self, string, etype, count):
-  
+
     from numpy import fromstring
     values = fromstring(string, etype)
     if self.swap_bytes:
@@ -297,13 +297,13 @@ class MRC_Data:
                         progress)
     if not matrix is None:
       matrix = self.permute_matrix_to_xyz_axis_order(matrix)
-    
+
     return matrix
 
   # ---------------------------------------------------------------------------
   #
   def permute_matrix_to_xyz_axis_order(self, matrix):
-    
+
     if self.ijk_to_crs == (0,1,2):
       return matrix
 
@@ -317,7 +317,7 @@ class MRC_Data:
 def valid_cell_angles(alpha, beta, gamma, path):
 
   err = None
-  
+
   for a in (alpha, beta, gamma):
     if a <= 0 or a >= 180:
       err = 'must be between 0 and 180'
@@ -360,7 +360,7 @@ def read_array(path, byte_offset, ijk_origin, ijk_size, ijk_step,
 
     if progress:
         progress.close_on_cancel(file)
-        
+
     # Seek in file to read needed 1d slices.
     io, jo, ko = ijk_origin
     isize, jsize, ksize = ijk_size
@@ -396,7 +396,7 @@ def read_full_array(path, byte_offset, size, type, byte_swap,
                     progress = None, block_size = 2**20):
 
     a = allocate_array(size, type)
-    
+
     file = open(path, 'rb')
     file.seek(byte_offset)
 
@@ -412,7 +412,7 @@ def read_full_array(path, byte_offset, size, type, byte_swap,
         progress.done()
     else:
         file.readinto(a)
-        
+
     file.close()
 
     if byte_swap:
@@ -453,7 +453,7 @@ def read_text_floats(path, byte_offset, size, array = None,
 
     if transpose:
         array = array.transpose()
-    
+
     if progress:
         progress.done()
 
@@ -491,7 +491,7 @@ def read_float_lines(f, array, line_format, progress = None):
             c += 1
         if progress:
             progress.fraction(float(c)/(count-1))
-  
+
 # -----------------------------------------------------------------------------
 #
 def split_fields(line, field_size, max_fields):
@@ -504,7 +504,7 @@ def split_fields(line, field_size, max_fields):
     else:
       break
   return fields[:max_fields]
-  
+
 # -----------------------------------------------------------------------------
 #
 from numpy import float32
@@ -537,7 +537,7 @@ def allocate_array(size, value_type = float32, step = None, progress = None,
         progress.array_size(msize, m.itemsize)
 
     return m
-  
+
 # -----------------------------------------------------------------------------
 #
 def report_memory_error(size, value_type):
@@ -560,38 +560,38 @@ def report_memory_error(size, value_type):
 #
 # Header contains four byte integer or float values:
 #
-# 1 NX  number of columns (fastest changing in map) 
-# 2 NY  number of rows          
-# 3 NZ  number of sections (slowest changing in map)  
-# 4 MODE  data type :         
+# 1 NX  number of columns (fastest changing in map)
+# 2 NY  number of rows
+# 3 NZ  number of sections (slowest changing in map)
+# 4 MODE  data type :
 #     0 image : signed 8-bit bytes range -128 to 127
-#     1 image : 16-bit halfwords    
-#     2 image : 32-bit reals      
-#     3 transform : complex 16-bit integers 
-#     4 transform : complex 32-bit reals  
-# 5 NXSTART number of first column in map     
-# 6 NYSTART number of first row in map      
-# 7 NZSTART number of first section in map      
-# 8 MX  number of intervals along X     
-# 9 MY  number of intervals along Y     
-# 10  MZ  number of intervals along Z     
-# 11-13 CELLA cell dimensions in angstroms      
-# 14-16 CELLB cell angles in degrees        
-# 17  MAP# axis corresp to cols (1,2,3 for X,Y,Z)   
-# 18  MAPR  axis corresp to rows (1,2,3 for X,Y,Z)    
-# 19  MAPS  axis corresp to sections (1,2,3 for X,Y,Z)  
-# 20  DMIN  minimum density value       
-# 21  DMAX  maximum density value       
-# 22  DMEAN mean density value        
-# 23  ISPG  space group number 0 or 1 (default=0)   
+#     1 image : 16-bit halfwords
+#     2 image : 32-bit reals
+#     3 transform : complex 16-bit integers
+#     4 transform : complex 32-bit reals
+# 5 NXSTART number of first column in map
+# 6 NYSTART number of first row in map
+# 7 NZSTART number of first section in map
+# 8 MX  number of intervals along X
+# 9 MY  number of intervals along Y
+# 10  MZ  number of intervals along Z
+# 11-13 CELLA cell dimensions in angstroms
+# 14-16 CELLB cell angles in degrees
+# 17  MAP# axis corresp to cols (1,2,3 for X,Y,Z)
+# 18  MAPR  axis corresp to rows (1,2,3 for X,Y,Z)
+# 19  MAPS  axis corresp to sections (1,2,3 for X,Y,Z)
+# 20  DMIN  minimum density value
+# 21  DMAX  maximum density value
+# 22  DMEAN mean density value
+# 23  ISPG  space group number 0 or 1 (default=0)
 # 24  NSYMBT  number of bytes used for symmetry data (0 or 80)
-# 25-49   EXTRA extra space used for anything     
-# 50-52 ORIGIN  origin in X,Y,Z used for transforms   
-# 53  MAP character string 'MAP ' to identify file type 
-# 54  MACHST  machine stamp         
-# 55  RMS rms deviation of map from mean density    
-# 56  NLABL number of labels being used     
-# 57-256 LABEL(20,10) 10 80-character text labels   
+# 25-49   EXTRA extra space used for anything
+# 50-52 ORIGIN  origin in X,Y,Z used for transforms
+# 53  MAP character string 'MAP ' to identify file type
+# 54  MACHST  machine stamp
+# 55  RMS rms deviation of map from mean density
+# 56  NLABL number of labels being used
+# 57-256 LABEL(20,10) 10 80-character text labels
 #
 
 # -----------------------------------------------------------------------------
@@ -700,7 +700,7 @@ def mrc2000_header(mrcdata, value_type, stats = None):
 
     header = ''.join(strings)
     return header
-    
+
 
 # -----------------------------------------------------------------------------
 #

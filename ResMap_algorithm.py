@@ -1,5 +1,6 @@
 '''
-ResMap_algorithm: module containing main local resolution 3D algorithm. (Alp Kucukelbir, 2013)
+ResMap_algorithm: module containing main local resolution 3D algorithm.
+								 (Alp Kucukelbir, 2013)
 
 Description of functions:
     ResMap_algorithm: Compute the local resolution map of a density map

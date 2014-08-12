@@ -1,15 +1,25 @@
 '''
-ResMap_spectrumToolks: module containing spectral processing functions for ResMap algorithm (Alp Kucukelbir, 2013)
+ResMap_spectrumToolks: module containing spectral processing functions
+											 for ResMap algorithm (Alp Kucukelbir, 2013)
 
 Description of functions:
-	  createPreWhiteningFilter: fits a polynomial to a spectrum and returns a whitening filter
- createPreWhiteningFilterFinal: take a fitted polynomial and returns a whitening filter
-		 preWhitenVolumeSoftBG: attempts to pre-whiten using soft background mask for noise estimate
-		         preWhitenCube: attempts to pre-whiten using a cube taken from the difference map
-		   displayPreWhitening: display the quasi-interactive Pre-Whitening Interface
+	    createPreWhiteningFilter: fits a polynomial to a spectrum and
+	    													returns a whitening filter
+ createPreWhiteningFilterFinal: take a fitted polynomial and returns a
+ 																whitening filter
+
+		 preWhitenVolumeSoftBG: attempts to pre-whiten using soft background
+		 												mask for noise estimate
+		         preWhitenCube: attempts to pre-whiten using a cube taken
+		         								from the difference map
+		   displayPreWhitening: display the quasi-interactive
+		   											Pre-Whitening Interface
 		  displayPowerSpectrum: debugging tool
-  			isPowerSpectrumLPF: attempts to determine whether there is a low-pass drop in the spectrum
-	    calculatePowerSpectrum: calculates the radially averaged power spectrum of a volume
+  			isPowerSpectrumLPF: attempts to determine whether there is a
+  													low-pass drop in the spectrum
+
+	    calculatePowerSpectrum: calculates the radially averaged
+	    												power spectrum of a volume
 
 Requirements:
 	scipy
@@ -23,7 +33,6 @@ from time import time
 import numpy as np
 from scipy import signal
 from scipy import fftpack
-from scipy import ndimage
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -101,7 +110,7 @@ def createPreWhiteningFilterFinal(**kwargs):
 	cubeSize      = kwargs.get('cubeSize', 0)
 
 	# Create radius matrix
-	R = createRmatrix(n) 
+	R = createRmatrix(n)
 
 	# Create the x and y variables for the polynomial regression
 	xpoly = np.array(range(1,spectrum.size + 1))
@@ -126,16 +135,16 @@ def createPreWhiteningFilterFinal(**kwargs):
 
 	del R
 
-	return {'pWfilter': pWfilter}	
+	return {'pWfilter': pWfilter}
 
 def preWhitenVolumeSoftBG(**kwargs):
 	'''
-	Pre-whitenening using noise estimates from a soft mask of the background. 
+	Pre-whitenening using noise estimates from a soft mask of the background.
 	Returns a the pre-whitened volume and various spectra. (Alp Kucukelbir, 2013)
 
 	'''
 	print '\n= Pre-whitening'
-	tStart = time()		
+	tStart = time()
 
 	n             = kwargs.get('n', 0)
 	elbowAngstrom = kwargs.get('elbowAngstrom', 0)
@@ -180,12 +189,12 @@ def preWhitenVolumeSoftBG(**kwargs):
 
 def preWhitenCube(**kwargs):
 	'''
-	Pre-whitenening using noise estimates from a cube taken from the difference map. 
+	Pre-whitenening using noise estimates from a cube taken from the difference map.
 	Returns a the pre-whitened volume and various spectra. (Alp Kucukelbir, 2013)
 
 	'''
 	print '\n= Pre-whitening the Cubes'
-	tStart = time()		
+	tStart = time()
 
 	n             = kwargs.get('n', 0)
 	vxSize        = kwargs.get('vxSize', 0)
@@ -223,7 +232,7 @@ def preWhitenCube(**kwargs):
 	dataPWBGSpect = sphericalAverage(dataPWBGFabs**2) + epsilon
 
 	dataBGPW = np.real(fftpack.ifftn(fftpack.ifftshift(dataBGF)))
-	del dataBGF	
+	del dataBGF
 
 	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
@@ -249,7 +258,7 @@ def displayPreWhitening(**kwargs):
 	dataPWSpect   = kwargs.get('dataPWSpect', 0)
 	dataPWBGSpect = kwargs.get('dataPWBGSpect', 0)
 	vxSize        = kwargs.get('vxSize', 0)
-	dataSlice     = kwargs.get('dataSlice', 0)	
+	dataSlice     = kwargs.get('dataSlice', 0)
 	dataPWSlice   = kwargs.get('dataPWSlice', 0)
 
 	xpoly = np.array(range(1,dataBGSpect.size + 1))
@@ -266,13 +275,13 @@ def displayPreWhitening(**kwargs):
 	ax2      = plt.subplot2grid((2,3), (1, 0))
 	ax3      = plt.subplot2grid((2,3), (1, 1))
 	axtext   = plt.subplot2grid((2,3), (1, 2))
-	
+
 	axbutton = plt.axes([0.67, 0.025, 0.23, 0.05])
 
 	# Continue/Update Button
 	buttonclose = Button(axbutton, label='Continue', color=okcolor, hovercolor=okcolor)
 	buttonclose.on_clicked(quit_figure)
-		
+
 	# Slider for elbow
 	axelbow = plt.axes([0.7, 0.65, 0.2, 0.03], axisbg=axcolor)
 	selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 100, valinit=elbowAngstrom)
@@ -287,7 +296,7 @@ def displayPreWhitening(**kwargs):
 	axtext.set_title('INSTRUCTIONS', color='#104E8B', fontweight='bold')
 	axtext.get_xaxis().set_visible(False)
 	axtext.get_yaxis().set_visible(False)
-	axtext.text(0.5, 0.5, 
+	axtext.text(0.5, 0.5,
 		'Please check that the green line\nis as straight as possible,\nat least in the high frequencies.\n\nIf not, adjust the sliders\nabove and press the Update button.\n\nResMap will try to pre-whiten the\nvolume again (the window will close).\n\nIf you are satisfied\nplease press Continue below.',
         horizontalalignment='center',
         verticalalignment='center',
@@ -302,10 +311,10 @@ def displayPreWhitening(**kwargs):
 	ax1.plot(xpoly, dataPWBGSpect,	lw=2, color='g', label='Background of Pre-Whitened Map')
 
 	Fs     = 1/vxSize
-	tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) ) 
+	tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) )
 	ax1.set_xticks( np.linspace(1,xpoly.size,tmp.size) )
 	ax1.set_xticklabels( ["%.1f" % member for member in tmp]  )
-	del tmp 
+	del tmp
 
 	tmp = np.concatenate((dataSpect, dataBGSpect, dataPWSpect, dataPWBGSpect))
 	ax1.set_ylabel('Power Spectrum (|f|^2)')
@@ -340,10 +349,10 @@ def displayPowerSpectrum(*args):
 		p = ax.plot(xpoly, dataPowerSpectrum, color=next(colors), label=a.name)
 
 		Fs     = 1/a.data_step[0]
-		tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) ) 
+		tmp    = 1/( Fs/2 * np.linspace(1e-2, 1, int(xpoly.size/6)) )
 		ax.set_xticks( np.linspace(1,xpoly.size,tmp.size) )
 		ax.set_xticklabels( ["%.1f" % member for member in tmp]  )
-		del tmp 
+		del tmp
 
 	plt.yscale('log')
 	plt.grid(linestyle='dotted')
@@ -394,7 +403,7 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 		return {'outcome':False, 'factor': 0.0}
 
 def calculatePowerSpectrum(data):
-	
+
 	epsilon = 1e-10
 
 	dataF     = np.array(fftpack.fftshift(fftpack.fftn(data)), dtype='complex64')

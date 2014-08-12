@@ -1,9 +1,12 @@
 '''
-ResMap_toChimera: module containing interface functions between ResMap and UCSF Chimera (Alp Kucukelbir, 2013)
+ResMap_toChimera: module containing interface functions between ResMap and
+                  UCSF Chimera (Alp Kucukelbir, 2013)
 
 Description of functions:
-		 createChimeraScript: produces a Chimera CMD script that loads and surface colors the volume
-			try_alternatives: tries to run a command that might be in any one of multiple locations
+ createChimeraScript: produces a Chimera CMD script that loads
+                      and surface colors the volume
+	  try_alternatives: tries to run a command that might be in
+                      any one of multiple locations
 
 Requirements:
 			numpy
@@ -71,7 +74,7 @@ def createChimeraScript(inputFileName, Mbegin, Mmax, N, animated=False):
 	f.write('turn y -30\n');
 	if animated == False:
 		f.write('# ')
-	f.write('turn z -30\n');		
+	f.write('turn z -30\n');
 	if animated == False:
 		f.write('# ')
 	f.write('scale 0.5\n\n');
@@ -88,10 +91,10 @@ def createChimeraScript(inputFileName, Mbegin, Mmax, N, animated=False):
 	f.write('volume #0 planes z,' + str(4*N/5) + ',' + str(N/5) + ',0.25\n');
 	if animated == False:
 		f.write('# ')
-	f.write('wait ' + str(4*int(4*N/5 - N/5)) + '\n');	
+	f.write('wait ' + str(4*int(4*N/5 - N/5)) + '\n');
 	if animated == False:
 		f.write('# ')
-	f.write('volume #0 planes z,' + str(N/5) + ',' + str(N/2) + ',0.25\n');	
+	f.write('volume #0 planes z,' + str(N/5) + ',' + str(N/2) + ',0.25\n');
 
 	f.close()
 
@@ -106,8 +109,9 @@ def try_alternatives(cmd, locations, args):
     to run the command in each location, in order, until the command
     is found (does not raise OSError on the attempt).
 
-    Courtesy of stackoverflew user steveha. 
-	LINK: http://stackoverflow.com/a/14106775
+    Courtesy of stackoverflew user steveha.
+
+	  LINK: http://stackoverflow.com/a/14106775
 
     """
     # build a list to pass to subprocess
@@ -121,7 +125,7 @@ def try_alternatives(cmd, locations, args):
         if callable(path):
             path = path()
 
-        # put full pathname of cmd into position 0 of list    
+        # put full pathname of cmd into position 0 of list
         lst_cmd[0] = os.path.join(path, cmd)
         try:
             return sp.call(lst_cmd)

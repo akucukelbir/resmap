@@ -495,11 +495,11 @@ class ResMapApp(object):
          "Attribution-NonCommercial-NoDerivs CC BY-NC-ND License " \
          "(http://creativecommons.org/licenses/by-nc-nd/3.0/)\n\n"
          "Please send comments, suggestions, and bug reports to " \
-         "alp.kucukelbir@yale.edu or hemant.tagare@yale.edu"))
+         "alpk@aya.yale.edu or hemant.tagare@yale.edu"))
 
     def showDocumentation(self):
         showinfo("ResMap Documentation",
-            "Please go to http://resmap.sourceforge.net to download the manual.")
+            "Please download the manual at http://resmap.sourceforge.net")
 
 if __name__ == '__main__':
 
