@@ -486,7 +486,7 @@ class ResMapApp(object):
 
     def showAbout(self):
         showinfo("About ResMap",
-        ("This is ResMap v"+version+".\n\n"
+        ("This is ResMap v."+version+".\n\n"
          "If you use ResMap in your work, please cite the following paper:\n\n"
          "A. Kucukelbir, F.J. Sigworth, and H.D. Tagare, Quantifying the " \
          "Local Resolution of Cryo-EM Density Maps, Nature Methods. " \
