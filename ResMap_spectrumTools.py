@@ -368,6 +368,15 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 	# smoothedLogSpectrum  = ndimage.filters.gaussian_filter1d(np.log(dataPowerSpectrum), 0.5, mode='nearest')
 	diffLogPowerSpectrum = np.diff(np.log(dataPowerSpectrum))
 
+	# fig = plt.figure(1)
+	# ax = fig.add_subplot(111)
+	# p = ax.plot(-1*diffLogPowerSpectrum)
+	# # plt.yscale('log')
+	# plt.grid(linestyle='dotted')
+	# plt.ylabel('Power Spectrum (|f|^2)')
+	# plt.xlabel('Frequency')
+	# plt.show()
+
 	# Find positive peaks in the derivative
 	peakInd = signal.find_peaks_cwt(-1*diffLogPowerSpectrum, np.arange(1,10), min_snr=2)
 
@@ -379,15 +388,6 @@ def isPowerSpectrumLPF(dataPowerSpectrum):
 
 	# print peakInd
 	# print maxInd
-
-	# fig = plt.figure(1)
-	# ax = fig.add_subplot(111)
-	# p = ax.plot(-1*diffLogPowerSpectrum)
-	# # plt.yscale('log')
-	# plt.grid(linestyle='dotted')
-	# plt.ylabel('Power Spectrum (|f|^2)')
-	# plt.xlabel('Frequency')
-	# plt.show()
 
 	# Calculate the mean and variance of the derivative of the power spectrum beyond maxInd
 	if maxInd < dataPowerSpectrum.size - 3:

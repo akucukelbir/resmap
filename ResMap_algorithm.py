@@ -935,53 +935,74 @@ def ResMap_algorithm(**kwargs):
 			print "\n\n\n!!! ResMap is having trouble finding and/or launching UCSF Chimera. Please manually load the script into Chimera. !!!\n\n\n"
 
 	if graphicalOutput == True:
+		visualize2Doutput(
+											dataOrig   = dataOrig,
+											minRes     = minRes,
+											maxRes     = maxRes,
+											resTOTALma = resTOTALma,
+											resHisto   = resHisto,
+											old_n      = old_n,
+											n          = n
+                  		)
 
-		# Plots
-		f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-		f.suptitle('Slices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
-		vminData, vmaxData = np.min(dataOrig), np.max(dataOrig)
-		ax1.imshow(dataOrig[int(3*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-		ax2.imshow(dataOrig[int(4*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-		ax3.imshow(dataOrig[int(5*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-		ax4.imshow(dataOrig[int(6*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 
-		ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
-		ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
-		ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
+def visualize2Doutput(**kwargs):
 
-		f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
-		f2.suptitle('Slices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
-		# ax21.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-		vminRes, vmaxRes = minRes, maxRes
-		im = ax21.imshow(resTOTALma[int(3*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-		ax22.imshow(     resTOTALma[int(4*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-		ax23.imshow(     resTOTALma[int(5*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-		ax24.imshow(     resTOTALma[int(6*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	# Get inputs
+	dataOrig   = kwargs.get('dataOrig',  None)
+	minRes     = kwargs.get('minRes', 0.0)
+	maxRes     = kwargs.get('maxRes', 0.0)
+	resTOTALma = kwargs.get('resTOTALma',  None)
+	resHisto   = kwargs.get('resHisto', None)
+	old_n      = kwargs.get('old_n', 0.0)
+	n          = kwargs.get('n', 0.0)
 
-		ax21.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
-		ax22.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
-		ax23.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-		ax24.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
+	# Plots
+	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+	f.suptitle('Slices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
+	vminData, vmaxData = np.min(dataOrig), np.max(dataOrig)
+	ax1.imshow(dataOrig[int(3*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax2.imshow(dataOrig[int(4*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax3.imshow(dataOrig[int(5*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax4.imshow(dataOrig[int(6*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 
-		cax = f2.add_axes([0.9, 0.1, 0.03, 0.8])
-		f2.colorbar(im, cax=cax)
+	ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+	ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+	ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+	ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 
-		# Histogram
-		f3   = plt.figure()
-		f3.suptitle('Histogram of ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
-		axf3 = f3.add_subplot(111)
+	f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
+	f2.suptitle('Slices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
+	# ax21.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	vminRes, vmaxRes = minRes, maxRes
+	im = ax21.imshow(resTOTALma[int(3*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	ax22.imshow(     resTOTALma[int(4*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	ax23.imshow(     resTOTALma[int(5*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	ax24.imshow(     resTOTALma[int(6*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 
-		axf3.bar(range(len(resHisto)), resHisto.values(), align='center')
-		axf3.set_xlabel('Resolution (Angstroms)')
-		axf3.set_xticks(range(len(resHisto)))
-		axf3.set_xticklabels(resHisto.keys())
-		axf3.set_ylabel('Number of Voxels')
+	ax21.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+	ax22.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+	ax23.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+	ax24.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
 
-		plt.show()
+	cax = f2.add_axes([0.9, 0.1, 0.03, 0.8])
+	f2.colorbar(im, cax=cax)
+
+	# Histogram
+	f3   = plt.figure()
+	f3.suptitle('Histogram of ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
+	axf3 = f3.add_subplot(111)
+
+	axf3.bar(range(len(resHisto)), resHisto.values(), align='center')
+	axf3.set_xlabel('Resolution (Angstroms)')
+	axf3.set_xticks(range(len(resHisto)))
+	axf3.set_xticklabels(resHisto.keys())
+	axf3.set_ylabel('Number of Voxels')
+
+	plt.show()
 
 
 
