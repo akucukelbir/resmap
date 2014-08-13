@@ -940,9 +940,7 @@ def ResMap_algorithm(**kwargs):
 											minRes     = minRes,
 											maxRes     = maxRes,
 											resTOTALma = resTOTALma,
-											resHisto   = resHisto,
-											old_n      = old_n,
-											n          = n
+											resHisto   = resHisto
                   		)
 
 
@@ -954,8 +952,10 @@ def visualize2Doutput(**kwargs):
 	maxRes     = kwargs.get('maxRes', 0.0)
 	resTOTALma = kwargs.get('resTOTALma',  None)
 	resHisto   = kwargs.get('resHisto', None)
-	old_n      = kwargs.get('old_n', 0.0)
-	n          = kwargs.get('n', 0.0)
+
+	# Grab the volume size (assumed to be a cube)
+	old_n = dataOrig.shape[0]
+	n     = resTOTALma.shape[0]
 
 	# Plots
 	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
