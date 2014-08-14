@@ -128,13 +128,15 @@ def ResMap_algorithm(**kwargs):
 		print "There is a serious problem with loading files. Aborting."
 		exit(1)
 
-	# Grab the volume size (assumed to be a cube)
-	n = data.shape[0]
-
 	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	# Test if volume is LPF
+
+	#################################
+	#
+	#   Test if volume is LPF
+	#
+	#################################
 	subVolLPF = 160
 	if splitVolume == False:
 		LPFtestResult = testLPF(
@@ -181,45 +183,32 @@ def ResMap_algorithm(**kwargs):
 	print '  stepRes:\t%.2f'   		% stepRes
 	print '  LPFfactor:\t%.2f'   	% LPFfactor
 
-	print '\n= Computing Mask Separating Particle from Background'
-	tStart = time()
 
-	# Update n in case downsampling was done above
-	n = data.shape[0]
 
-	# We assume the particle is at the center of the volume
-	# Create spherical mask
-	R = createRmatrix(n)
-	Rinside = R < n/2 - 1
+	#################################
+	#
+	#   Compute Mask
+	#
+	#################################
+	computeMaskResult = computeMask(
+																	data = data,
+																	dataMask = dataMask,
+																	LPFfactor = LPFfactor,
+																	splitVolume = splitVolume
+																	)
 
-	# Check to see if mask volume was provided
-	if isinstance(dataMask,MRC_Data) == False:
-		# Compute mask separating the particle from background
-		dataBlurred  = filters.gaussian_filter(data, float(n)*0.02)	# kernel size 2% of n
-		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2		# threshold at 5% of max value
-		del dataBlurred
-	else:
-		if LPFfactor == 0.0:
-			dataMask = np.array(dataMask.matrix, dtype='bool')
-		else:	# Interpolate the given mask
-			dataMask = ndimage.interpolation.zoom(dataMask.matrix, LPFfactor, mode='reflect')
-			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)	# kernel size 2% of n
-			dataMask = dataMask > np.max(dataMask)*5e-2					# threshold at 5% of max value
+	mask         = computeMaskResult['mask']
+	dataMask     = computeMaskResult['dataMask']
+	oldSumOfMask = computeMaskResult['oldSumOfMask']
+	Rinside      = computeMaskResult['Rinside']
 
-	if splitVolume == False:
-		mask = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
-	else:
-		tmp_box = np.zeros((n,n,n), dtype='bool')	# make cube that goes to 9 voxels to the edge
-		tmp_box[9:-9,9:-9,9:-9] = True 						# | this is a hack for Liz Kellog's case
-		mask = np.bitwise_and(dataMask, tmp_box)
-		del tmp_box
 
-	oldSumOfMask = np.sum(mask)
 
-	m, s = divmod(time() - tStart, 60)
-	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
 
 	# PRE-WHITENING
+
+	n = data.shape[0]
 
 	# We take a first shot at ramping the spectrum up/down beyond 10A
 	oldElbowAngstrom = 0
@@ -362,8 +351,6 @@ def ResMap_algorithm(**kwargs):
 		if splitVolume == True:
 			(dataDiffF, dataPowerSpectrumDoff) = calculatePowerSpectrum(dataDiff)
 
-		R = createRmatrix(n)
-
 		pwFilterFinal = createPreWhiteningFilterFinal(	n = n,
 											cubeSize      = cubeSize,
 											spectrum      = dataPowerSpectrum,
@@ -415,7 +402,7 @@ def ResMap_algorithm(**kwargs):
 		if splitVolume == True:
 			dataDiff = dataDiffPW
 			del dataDiffF, dataDiffPW
-		del dataF, dataPW, R
+		del dataF, dataPW
 
 	else:
 
@@ -890,6 +877,78 @@ def ResMap_algorithm(**kwargs):
 											resTOTALma = resTOTALma,
 											resHisto   = resHisto
                   		)
+
+
+
+
+
+
+
+
+
+
+
+
+
+def computeMask(**kwargs):
+
+	data        = kwargs.get('data', None)
+	dataMask    = kwargs.get('dataMask', None)
+	LPFfactor   = kwargs.get('LPFfactor', None)
+	splitVolume = kwargs.get('splitVolume', False)
+
+	print '\n= Computing Mask Separating Particle from Background'
+	tStart = time()
+
+	# Update n in case downsampling was done above
+	n = data.shape[0]
+
+	# We assume the particle is at the center of the volume
+	# Create spherical mask
+	R = createRmatrix(n)
+	Rinside = R < n/2 - 1
+
+	# Check to see if mask volume was provided
+	if isinstance(dataMask,MRC_Data) == False:
+		# Compute mask separating the particle from background
+		dataBlurred  = filters.gaussian_filter(data, float(n)*0.02)	# kernel size 2% of n
+		dataMask     = dataBlurred > np.max(dataBlurred)*5e-2		# threshold at 5% of max value
+		del dataBlurred
+	else:
+		if LPFfactor == 0.0:
+			dataMask = np.array(dataMask.matrix, dtype='bool')
+		else:	# Interpolate the given mask
+			dataMask = ndimage.interpolation.zoom(dataMask.matrix, LPFfactor, mode='reflect')
+			dataMask = filters.gaussian_filter(dataMask, float(n)*0.02)	# kernel size 2% of n
+			dataMask = dataMask > np.max(dataMask)*5e-2					# threshold at 5% of max value
+
+	if splitVolume == False:
+		mask = np.bitwise_and(dataMask,  R < n/2 - 9)	# backoff 9 voxels from edge (make adaptive later)
+	else:
+		tmp_box = np.zeros((n,n,n), dtype='bool')	# make cube that goes to 9 voxels to the edge
+		tmp_box[9:-9,9:-9,9:-9] = True 						# | this is a hack for Liz Kellog's case
+		mask = np.bitwise_and(dataMask, tmp_box)
+		del tmp_box
+
+	oldSumOfMask = np.sum(mask)
+
+	m, s = divmod(time() - tStart, 60)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	return {'mask':mask, 'dataMask':dataMask, 'oldSumOfMask':oldSumOfMask,
+					'Rinside': Rinside}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
