@@ -120,10 +120,14 @@ def ResMap_algorithm(**kwargs):
 	if inputFileName:
 		data  = dataMRC.matrix
 		data  = data-np.mean(data)
+		dataOrig = np.copy(data)
+		orig_n = data.shape[0]
 	elif inputFileName1 and inputFileName2:
 		splitVolume = True
 		data     = 0.5 * (dataMRC1.matrix + dataMRC2.matrix)
 		dataDiff = 0.5 * (dataMRC1.matrix - dataMRC2.matrix)
+		dataOrig = np.copy(data)
+		orig_n = data.shape[0]
 	else:
 		print "There is a serious problem with loading files. Aborting."
 		exit(1)
@@ -239,6 +243,106 @@ def ResMap_algorithm(**kwargs):
 		dataDiff = preWhiteningLoopResult['dataDiff']
 
 
+	#################################
+	#
+	#   Compute ResMap
+	#
+	#################################
+	if splitVolume == False:
+		computeResMapResult = computeResMap(
+															data         = data,
+															Rinside      = Rinside,
+															mask         = mask,
+															splitVolume  = splitVolume,
+															currentRes   = currentRes,
+															vxSize       = vxSize,
+															LPFfactor    = LPFfactor,
+															debugMode    = debugMode,
+															pValue       = pValue,
+															oldSumOfMask = oldSumOfMask,
+															stepRes     = stepRes,
+															maxRes     = maxRes,
+															orig_n     = orig_n
+															)
+	else:
+		computeResMapResult = computeResMap(
+															data         = data,
+															Rinside      = Rinside,
+															mask         = mask,
+															splitVolume  = splitVolume,
+															currentRes   = currentRes,
+															vxSize       = vxSize,
+															dataDiff     = dataDiff,
+															LPFfactor    = LPFfactor,
+															debugMode    = debugMode,
+															pValue       = pValue,
+															oldSumOfMask = oldSumOfMask,
+															stepRes     = stepRes,
+															maxRes     = maxRes,
+															orig_n     = orig_n
+															)
+
+	resTOTAL   = computeResMapResult['resTOTAL']
+	resTOTALma = computeResMapResult['resTOTALma']
+	resHisto   = computeResMapResult['resHisto']
+
+
+	m, s = divmod(time() - tBegin, 60)
+	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+
+	# Write results out as MRC volume
+	if splitVolume == True:
+		(fname,ext)    = os.path.splitext(inputFileName1)
+		dataMRC1.matrix = np.array(resTOTAL,dtype='float32')
+		write_mrc2000_grid_data(dataMRC1, fname+"_resmap"+ext)
+	else:
+		(fname,ext)    = os.path.splitext(inputFileName)
+		dataMRC.matrix = np.array(resTOTAL,dtype='float32')
+		write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
+
+
+	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
+
+	if splitVolume == True:
+		chimeraScriptFileName = createChimeraScript(inputFileName1, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
+	else:
+		chimeraScriptFileName = createChimeraScript(inputFileName, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
+
+	print "\nCHIMERA SCRIPT WRITTEN to: " + chimeraScriptFileName
+
+	if chimeraLaunch == True:
+		print "\nATTEMPTING TO LAUNCH CHIMERA... "
+		locations = ["",
+					 "/Applications/Chimera.app/Contents/MacOS/",
+					 "/usr/local/bin/",
+					 "C:\\Program Files\\Chimera\\bin\\",
+					 "C:\\Program Files\\Chimera 1.6\\bin\\",
+					 "C:\\Program Files\\Chimera 1.7\\bin\\",
+					 "C:\\Program Files\\Chimera 1.8\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera 1.6\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera 1.7\\bin\\",
+					 "C:\\Program Files (x86)\\Chimera 1.8\\bin\\"]
+		try:
+			try_alternatives("chimera", locations, ["--send", chimeraScriptFileName])
+		except OSError:
+			print "\n\n\n!!! ResMap is having trouble finding and/or launching UCSF Chimera. Please manually load the script into Chimera. !!!\n\n\n"
+
+
+	#################################
+	#
+	#   Call 2D visualization
+	#
+	#################################
+	if graphicalOutput == True:
+		visualize2Doutput(
+											dataOrig   = dataOrig,
+											minRes     = minRes,
+											maxRes     = maxRes,
+											resTOTALma = resTOTALma,
+											resHisto   = resHisto
+                  		)
 
 
 
@@ -246,6 +350,49 @@ def ResMap_algorithm(**kwargs):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def computeResMap(**kwargs):
+
+	data        = kwargs.get('data', None)
+	Rinside     = kwargs.get('Rinside', None)
+	mask        = kwargs.get('mask', None)
+	splitVolume = kwargs.get('splitVolume', False)
+
+	currentRes  = kwargs.get('currentRes', None)
+	vxSize      = kwargs.get('vxSize', None)
+
+	dataDiff    = kwargs.get('dataDiff', None)
+
+	LPFfactor   = kwargs.get('LPFfactor', None)
+
+	debugMode   = kwargs.get('debugMode', False)
+
+	pValue   = kwargs.get('pValue', None)
+
+	oldSumOfMask   = kwargs.get('oldSumOfMask', None)
+
+	stepRes   = kwargs.get('stepRes', 0.0)
+	maxRes   = kwargs.get('maxRes', 0.0)
+
+	orig_n   = kwargs.get('orig_n', 0.0)
 
 
 	print("\n=======================================================================\n"
@@ -555,16 +702,10 @@ def ResMap_algorithm(**kwargs):
 	print "\n  MEAN RESOLUTION in MASK = %.2f" % np.ma.mean(resTOTALma)
 	print "MEDIAN RESOLUTION in MASK = %.2f" % np.ma.median(resTOTALma)
 
-	if splitVolume == True:
-		dataOrig = dataMRC1.matrix
-		old_n    = dataMRC1.data_size[0]
-	else:
-		dataOrig = dataMRC.matrix
-		old_n    = dataMRC.data_size[0]
 
-	old_coordinates = np.mgrid[	0:n-1:complex(0,old_n),
-								0:n-1:complex(0,old_n),
-								0:n-1:complex(0,old_n) ]
+	old_coordinates = np.mgrid[	0:n-1:complex(0,orig_n),
+								0:n-1:complex(0,orig_n),
+								0:n-1:complex(0,orig_n) ]
 
 	# Up-sample the resulting resolution map if necessary
 	if LPFfactor > 0:
@@ -574,64 +715,15 @@ def ResMap_algorithm(**kwargs):
 
 		resTOTALma = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)
 
-	# Write results out as MRC volume
-	if splitVolume == True:
-		(fname,ext)    = os.path.splitext(inputFileName1)
-		dataMRC1.matrix = np.array(resTOTAL,dtype='float32')
-		write_mrc2000_grid_data(dataMRC1, fname+"_resmap"+ext)
-	else:
-		(fname,ext)    = os.path.splitext(inputFileName)
-		dataMRC.matrix = np.array(resTOTAL,dtype='float32')
-		write_mrc2000_grid_data(dataMRC, fname+"_resmap"+ext)
-
-	m, s = divmod(time() - tBegin, 60)
-	print "\nTOTAL :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+	return {'resTOTAL':resTOTAL, 'resTOTALma':resTOTALma, 'resHisto':resHisto}
 
 
 
 
 
-	print "\nRESULT WRITTEN to MRC file: " + fname + "_resmap" + ext
-
-	if splitVolume == True:
-		chimeraScriptFileName = createChimeraScript(inputFileName1, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
-	else:
-		chimeraScriptFileName = createChimeraScript(inputFileName, minRes, maxRes, int(resTOTAL.shape[0]), animated=True)
-
-	print "\nCHIMERA SCRIPT WRITTEN to: " + chimeraScriptFileName
-
-	if chimeraLaunch == True:
-		print "\nATTEMPTING TO LAUNCH CHIMERA... "
-		locations = ["",
-					 "/Applications/Chimera.app/Contents/MacOS/",
-					 "/usr/local/bin/",
-					 "C:\\Program Files\\Chimera\\bin\\",
-					 "C:\\Program Files\\Chimera 1.6\\bin\\",
-					 "C:\\Program Files\\Chimera 1.7\\bin\\",
-					 "C:\\Program Files\\Chimera 1.8\\bin\\",
-					 "C:\\Program Files (x86)\\Chimera\\bin\\",
-					 "C:\\Program Files (x86)\\Chimera 1.6\\bin\\",
-					 "C:\\Program Files (x86)\\Chimera 1.7\\bin\\",
-					 "C:\\Program Files (x86)\\Chimera 1.8\\bin\\"]
-		try:
-			try_alternatives("chimera", locations, ["--send", chimeraScriptFileName])
-		except OSError:
-			print "\n\n\n!!! ResMap is having trouble finding and/or launching UCSF Chimera. Please manually load the script into Chimera. !!!\n\n\n"
 
 
-	#################################
-	#
-	#   Call 2D visualization
-	#
-	#################################
-	if graphicalOutput == True:
-		visualize2Doutput(
-											dataOrig   = dataOrig,
-											minRes     = minRes,
-											maxRes     = maxRes,
-											resTOTALma = resTOTALma,
-											resHisto   = resHisto
-                  		)
+
 
 
 
@@ -1204,17 +1296,17 @@ def visualize2Doutput(**kwargs):
 	resHisto   = kwargs.get('resHisto', None)
 
 	# Grab the volume size (assumed to be a cube)
-	old_n = dataOrig.shape[0]
+	orig_n = dataOrig.shape[0]
 	n     = resTOTALma.shape[0]
 
 	# Plots
 	f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
 	f.suptitle('Slices Through Input Volume', fontsize=14, color='#104E8B', fontweight='bold')
 	vminData, vmaxData = np.min(dataOrig), np.max(dataOrig)
-	ax1.imshow(dataOrig[int(3*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax2.imshow(dataOrig[int(4*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax3.imshow(dataOrig[int(5*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-	ax4.imshow(dataOrig[int(6*old_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax1.imshow(dataOrig[int(3*orig_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax2.imshow(dataOrig[int(4*orig_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax3.imshow(dataOrig[int(5*orig_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	ax4.imshow(dataOrig[int(6*orig_n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
 
 	ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
 	ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
@@ -1223,15 +1315,15 @@ def visualize2Doutput(**kwargs):
 
 	f2, ((ax21, ax22), (ax23, ax24)) = plt.subplots(2, 2)
 	f2.suptitle('Slices Through ResMap Results', fontsize=14, color='#104E8B', fontweight='bold')
-	# ax21.imshow(dataOrig[int(3*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax22.imshow(dataOrig[int(4*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax23.imshow(dataOrig[int(5*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
-	# ax24.imshow(dataOrig[int(6*old_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax21.imshow(dataOrig[int(3*orig_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax22.imshow(dataOrig[int(4*orig_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax23.imshow(dataOrig[int(5*orig_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
+	# ax24.imshow(dataOrig[int(6*orig_n/9),:,:], cmap=plt.cm.gray, interpolation="nearest")
 	vminRes, vmaxRes = minRes, maxRes
-	im = ax21.imshow(resTOTALma[int(3*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-	ax22.imshow(     resTOTALma[int(4*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-	ax23.imshow(     resTOTALma[int(5*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
-	ax24.imshow(     resTOTALma[int(6*old_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	im = ax21.imshow(resTOTALma[int(3*orig_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	ax22.imshow(     resTOTALma[int(4*orig_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	ax23.imshow(     resTOTALma[int(5*orig_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
+	ax24.imshow(     resTOTALma[int(6*orig_n/9),:,:], vmin=vminRes, vmax=vmaxRes, cmap=plt.cm.jet, interpolation="nearest")#, alpha=0.25)
 
 	ax21.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
 	ax22.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
