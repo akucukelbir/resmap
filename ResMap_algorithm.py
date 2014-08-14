@@ -121,11 +121,9 @@ def ResMap_algorithm(**kwargs):
 		data  = dataMRC.matrix
 		data  = data-np.mean(data)
 	elif inputFileName1 and inputFileName2:
-
 		splitVolume = True
 		data     = 0.5 * (dataMRC1.matrix + dataMRC2.matrix)
 		dataDiff = 0.5 * (dataMRC1.matrix - dataMRC2.matrix)
-
 	else:
 		print "There is a serious problem with loading files. Aborting."
 		exit(1)
@@ -136,89 +134,39 @@ def ResMap_algorithm(**kwargs):
 	m, s = divmod(time() - tStart, 60)
 	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
-	tStart = time()
-
-	# If the volume is larger than subVolLPF^3, then do LPF test on smaller volume to save computation
+	# Test if volume is LPF
 	subVolLPF = 160
-	if n > subVolLPF:
-
-		print ( "=======================================================================\n"
-				"|                                                                     |\n"
-				"|          The input volume is quite large ( >160 voxels).            |\n"
-				"|                                                                     |\n"
-				"|         ResMap will run its low-pass filtering test on a            |\n"
-				"|       cube of size 160 taken from the center of the volume.         |\n"
-				"|                                                                     |\n"
-				"|        This is usually not a problem, but please notify the         |\n"
-				"|                  authors if something goes awry.                    |\n"
-				"|                                                                     |\n"
-				"=======================================================================\n")
-
-		mid  = int(n/2)
-		midR = subVolLPF/2
-
-		# Extract a cube from the middle of the density
-		middleCube = data[mid-midR:mid+midR, mid-midR:mid+midR, mid-midR:mid+midR]
-
-		# Create a 3D hamming window
-		hammingWindow1D = signal.hamming(subVolLPF)
-		hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
-		hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
-		del hammingWindow1D, hammingWindow2D
-
-		# Apply the hamming window to the middle cube
-		middleCube = np.multiply(middleCube,hammingWindow3D)
-
-		# Calculate the Fourier spectrum and run the test
-		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(middleCube)
-		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
-		del middleCube, hammingWindow3D
+	if splitVolume == False:
+		LPFtestResult = testLPF(
+														data        = data,
+														splitVolume = splitVolume,
+														vxSize      = vxSize,
+														minRes      = minRes,
+														maxRes      = maxRes,
+														subVolLPF   = subVolLPF
+														)
 	else:
-		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
-		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+		LPFtestResult = testLPF(
+														data        = data,
+														dataDiff    = dataDiff,
+														splitVolume = splitVolume,
+														vxSize      = vxSize,
+														minRes      = minRes,
+														maxRes      = maxRes,
+														subVolLPF   = subVolLPF
+														)
 
-	if LPFtest['outcome']:
-		print ( "=======================================================================\n"
-				"|                                                                     |\n"
-				"|            The volume appears to be low-pass filtered.              |\n"
-				"|                                                                     |\n"
-				"|         This is not ideal, but ResMap will attempt to run.          |\n"
-				"|                                                                     |\n"
-				"|        The input volume will be down-sampled within ResMap.         |\n"
-				"|                                                                     |\n"
-				"=======================================================================\n")
+	LPFfactor         = LPFtestResult['LPFfactor']
+	vxSize            = LPFtestResult['vxSize']
+	minRes            = LPFtestResult['minRes']
+	maxRes            = LPFtestResult['maxRes']
+	currentRes        = LPFtestResult['currentRes']
+	data              = LPFtestResult['data']
+	dataF             = LPFtestResult['dataF']
+	dataPowerSpectrum = LPFtestResult['dataPowerSpectrum']
+	if splitVolume == True:
+		dataDiff = LPFtestResult['dataDiff']
 
-		# Calculate the ratio by which the volume should be down-sampled
-		# such that the LPF cutoff becomes the new Nyquist
-		LPFfactor = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
-
-		# Down-sample the volume using cubic splines
-		data   = ndimage.interpolation.zoom(data, LPFfactor, mode='reflect')
-		if splitVolume == True:
-			dataDiff = ndimage.interpolation.zoom(dataDiff, LPFfactor, mode='reflect')
-		vxSize = float(vxSize)/LPFfactor
-	else:
-		print ( "=======================================================================\n"
-				"|                                                                     |\n"
-				"|        The volume does not appear to be low-pass filtered.          |\n"
-				"|                                                                     |\n"
-				"|                              Great!                                 |\n"
-				"|                                                                     |\n"
-				"=======================================================================\n")
-		LPFfactor = 0.0
-
-	# Calculate min res
-	if minRes <= (2.2*vxSize):
-		minRes = round((2.2*vxSize)/0.1)*0.1 # round to the nearest 0.1
-	currentRes = minRes
-
-	# Calculate max res
-	if maxRes == 0.0:
-		maxRes = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
-
-	m, s = divmod(time() - tStart, 60)
-	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
 	print '\n\n= ResMap will now run with the following parameters'
 	if splitVolume == False:
@@ -942,6 +890,143 @@ def ResMap_algorithm(**kwargs):
 											resTOTALma = resTOTALma,
 											resHisto   = resHisto
                   		)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+def testLPF(**kwargs):
+
+	# Get inputs
+	data        = kwargs.get('data',     None)
+	dataDiff    = kwargs.get('dataDiff', None)
+	splitVolume = kwargs.get('splitVolume', False)
+	vxSize      = kwargs.get('vxSize', 0.0)
+	minRes      = kwargs.get('minRes', 0.0)
+	maxRes      = kwargs.get('maxRes', 0.0)
+	currentRes  = kwargs.get('currentRes', 0.0)
+	subVolLPF   = kwargs.get('subVolLPF', 0.0)
+
+	n = data.shape[0]
+
+	print '\n\n= Testing Whether the Input Volume has been Low-pass Filtered\n'
+	tStart = time()
+
+	# If the volume is larger than subVolLPF^3, then do LPF test on smaller volume to save computation
+	if n > subVolLPF:
+
+		print ( "=======================================================================\n"
+				"|                                                                     |\n"
+				"|          The input volume is quite large ( >160 voxels).            |\n"
+				"|                                                                     |\n"
+				"|         ResMap will run its low-pass filtering test on a            |\n"
+				"|       cube of size 160 taken from the center of the volume.         |\n"
+				"|                                                                     |\n"
+				"|        This is usually not a problem, but please notify the         |\n"
+				"|                  authors if something goes awry.                    |\n"
+				"|                                                                     |\n"
+				"=======================================================================\n")
+
+		mid  = int(n/2)
+		midR = subVolLPF/2
+
+		# Extract a cube from the middle of the density
+		middleCube = data[mid-midR:mid+midR, mid-midR:mid+midR, mid-midR:mid+midR]
+
+		# Create a 3D hamming window
+		hammingWindow1D = signal.hamming(subVolLPF)
+		hammingWindow2D = array_outer_product(hammingWindow1D,hammingWindow1D)
+		hammingWindow3D = array_outer_product(hammingWindow2D,hammingWindow2D)
+		del hammingWindow1D, hammingWindow2D
+
+		# Apply the hamming window to the middle cube
+		middleCube = np.multiply(middleCube,hammingWindow3D)
+
+		# Calculate the Fourier spectrum and run the test
+		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(middleCube)
+		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+		del middleCube, hammingWindow3D
+	else:
+		(dataF, dataPowerSpectrum) = calculatePowerSpectrum(data)
+		LPFtest                    = isPowerSpectrumLPF(dataPowerSpectrum)
+
+	if LPFtest['outcome']:
+		print ( "=======================================================================\n"
+				"|                                                                     |\n"
+				"|            The volume appears to be low-pass filtered.              |\n"
+				"|                                                                     |\n"
+				"|         This is not ideal, but ResMap will attempt to run.          |\n"
+				"|                                                                     |\n"
+				"|        The input volume will be down-sampled within ResMap.         |\n"
+				"|                                                                     |\n"
+				"=======================================================================\n")
+
+		# Calculate the ratio by which the volume should be down-sampled
+		# such that the LPF cutoff becomes the new Nyquist
+		LPFfactor = round((LPFtest['factor'])/0.01)*0.01	# round to the nearest 0.01
+
+		# Down-sample the volume using cubic splines
+		data   = ndimage.interpolation.zoom(data, LPFfactor, mode='reflect')
+		if splitVolume == True:
+			dataDiff = ndimage.interpolation.zoom(dataDiff, LPFfactor, mode='reflect')
+		vxSize = float(vxSize)/LPFfactor
+	else:
+		print ( "=======================================================================\n"
+				"|                                                                     |\n"
+				"|        The volume does not appear to be low-pass filtered.          |\n"
+				"|                                                                     |\n"
+				"|                              Great!                                 |\n"
+				"|                                                                     |\n"
+				"=======================================================================\n")
+		LPFfactor = 0.0
+
+	# Calculate min res
+	if minRes <= (2.2*vxSize):
+		minRes = round((2.2*vxSize)/0.1)*0.1 # round to the nearest 0.1
+	currentRes = minRes
+
+	# Calculate max res
+	if maxRes == 0.0:
+		maxRes = round((4.0*vxSize)/0.5)*0.5 # round to the nearest 0.5
+
+	m, s = divmod(time() - tStart, 60)
+	print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+
+	if splitVolume == False:
+		return {'LPFfactor':LPFfactor, 'vxSize':vxSize,
+						'minRes':minRes, 'maxRes':maxRes, 'currentRes':currentRes,
+						'data':data,
+						'dataF':dataF, 'dataPowerSpectrum':dataPowerSpectrum}
+	else:
+		return {'LPFfactor':LPFfactor, 'vxSize':vxSize,
+						'minRes':minRes, 'maxRes':maxRes, 'currentRes':currentRes,
+						'data':data, 'dataDiff':dataDiff,
+						'dataF':dataF, 'dataPowerSpectrum':dataPowerSpectrum}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def visualize2Doutput(**kwargs):
