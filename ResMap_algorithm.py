@@ -33,6 +33,7 @@ from ResMap_toChimera import *
 from ResMap_spectrumTools import *
 from ResMap_sphericalProfile import sphericalAverage
 
+
 def ResMap_algorithm(**kwargs):
 	'''
 	ResMap_algorithm
@@ -343,6 +344,7 @@ def ResMap_algorithm(**kwargs):
 											resTOTALma = resTOTALma,
 											resHisto   = resHisto
                   		)
+	return computeResMapResult
 
 
 
@@ -391,6 +393,7 @@ def computeResMap(**kwargs):
 
 	stepRes   = kwargs.get('stepRes', 0.0)
 	maxRes   = kwargs.get('maxRes', 0.0)
+	minRes   = kwargs.get('minRes', 0.0)
 
 	orig_n   = kwargs.get('orig_n', 0.0)
 
