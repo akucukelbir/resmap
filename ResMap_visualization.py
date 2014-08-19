@@ -24,11 +24,13 @@ def visualize2DPlots(**kwargs):
     
 
 def plotOriginalVolume(volumeData):    
-    fig, _ = plotVolumeSlices('Slices Through Input Volume', volumeData, np.min(volumeData), np.max(volumeData), plt.cm.gray)
+    fig, _ = plotVolumeSlices('Slices Through Input Volume', volumeData, 
+                              np.min(volumeData), np.max(volumeData), plt.cm.gray)
     return fig
 
 def plotResMapVolume(resmapData, minRes, maxRes):
-    fig, im = plotVolumeSlices('Slices Through ResMap Results', resmapData, minRes, maxRes, plt.cm.jet)
+    fig, im = plotVolumeSlices('Slices Through ResMap Results', resmapData, 
+                               0., np.max(resmapData), plt.cm.jet)
     cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
     fig.colorbar(im, cax=cax)
     return fig
