@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.widgets import Slider
 from matplotlib.widgets import Button
+from matplotlib.gridspec import GridSpec
 
 from ResMap_sphericalProfile import sphericalAverage
 from ResMap_helpers import createRmatrix
@@ -240,15 +241,22 @@ def preWhitenCube(**kwargs):
 	return {'dataPW':dataPW, 'dataBGPW':dataBGPW, 'dataPWSpect': dataPWSpect, 'dataPWBGSpect': dataPWBGSpect, 'peval': pWfilter['peval'], 'pcoef': pWfilter['pcoef'] }
 
 
-def displayPreWhitening(**kwargs):
+def createPrewhiteningFigure(**kwargs):
 
 	def something_changed(val):
-		axbutton.cla()
-		buttonclose = Button(axbutton, label='Click here to Update', color=updcolor, hovercolor=updcolor)
+		fig.axbutton.cla()
+		updcolor = 'firebrick'
+		fig.buttonclose = Button(fig.axbutton, label='Click here to Update', color=updcolor, hovercolor=updcolor)
 		fig.canvas.draw()
 
 	def quit_figure(event):
 		plt.close(event.canvas.figure)
+			
+	def add_subplot(location, rowspan=1, colspan=1):
+		gridspec = GridSpec(2, 3)
+		subplotspec = gridspec.new_subplotspec(location, rowspan, colspan)
+		return fig.add_subplot(subplotspec)
+
 
 	elbowAngstrom = kwargs.get('elbowAngstrom',0)
 	rampWeight    = kwargs.get('rampWeight', 1.0)
@@ -260,48 +268,71 @@ def displayPreWhitening(**kwargs):
 	vxSize        = kwargs.get('vxSize', 0)
 	dataSlice     = kwargs.get('dataSlice', 0)
 	dataPWSlice   = kwargs.get('dataPWSlice', 0)
+	
+	# From Scipion we will create sliders and button in tk
+	showSliders   = kwargs.get('showSliders', True)
+	showButtons   = kwargs.get('showButtons', True)
+	instructions  = kwargs.get('instructions', """'Please check that the green line
+is as straight as possible,
+at least in the high frequencies.
+
+If not, adjust the sliders
+above and press the Update button.
+
+ResMap will try to pre-whiten the
+volume again (the window will close).
+
+If you are satisfied
+please press Continue below.	
+	""")
 
 	xpoly = np.array(range(1,dataBGSpect.size + 1))
 
-	# Figure
-	fig = plt.figure(figsize=(18, 9))
+	# Accept 'figure' as a keyword argument
+	# if not passed, create using plt.figure
+	if 'figure' in kwargs:
+		fig = kwargs.get('figure')
+	else:
+		fig = plt.figure(figsize=(18, 9))
+	
 	fig.suptitle('\nResMap Pre-Whitening Interface (beta)', fontsize=20, color='#104E8B', fontweight='bold')
 
 	axcolor  = 'lightgoldenrodyellow'
 	okcolor  = 'seagreen'
-	updcolor = 'firebrick'
 
-	ax1      = plt.subplot2grid((2,3), (0,0), colspan=2)
-	ax2      = plt.subplot2grid((2,3), (1, 0))
-	ax3      = plt.subplot2grid((2,3), (1, 1))
-	axtext   = plt.subplot2grid((2,3), (1, 2))
+	ax1      = add_subplot((0,0), colspan=2)
+	ax2      = add_subplot((1, 0))
+	ax3      = add_subplot((1, 1))
+	axtext   = add_subplot((1, 2))
 
-	axbutton = plt.axes([0.67, 0.025, 0.23, 0.05])
 
-	# Continue/Update Button
-	buttonclose = Button(axbutton, label='Continue', color=okcolor, hovercolor=okcolor)
-	buttonclose.on_clicked(quit_figure)
+	if showButtons:
+		fig.axbutton = fig.add_axes([0.67, 0.025, 0.23, 0.05])
+		# Continue/Update Button
+		fig.buttonclose = Button(fig.axbutton, label='Continue', color=okcolor, hovercolor=okcolor)
+		fig.buttonclose.on_clicked(quit_figure)
 
-	# Slider for elbow
-	axelbow = plt.axes([0.7, 0.65, 0.2, 0.03], axisbg=axcolor)
-	selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 100, valinit=elbowAngstrom)
-	selbow.on_changed(something_changed)
-
-	# Slider for rampWeight
-	axramp = plt.axes([0.7, 0.55, 0.2, 0.03], axisbg=axcolor)
-	sramp  = Slider(axramp, 'Ramp Weight', 0.0, 1.0, valinit=rampWeight)
-	sramp.on_changed(something_changed)
+	if showSliders:
+		print "adding sliders..."
+		# Slider for elbow
+		axelbow = fig.add_axes([0.7, 0.65, 0.2, 0.03], axisbg=axcolor)
+		fig.selbow  = Slider(axelbow, 'Angstrom', 2.1*vxSize, 100, valinit=elbowAngstrom)
+		fig.selbow.on_changed(something_changed)
+	
+		# Slider for rampWeight
+		axramp = fig.add_axes([0.7, 0.55, 0.2, 0.03], axisbg=axcolor)
+		fig.sramp  = Slider(axramp, 'Ramp Weight', 0.0, 1.0, valinit=rampWeight)
+		fig.sramp.on_changed(something_changed)
 
 	# Instructions
 	axtext.set_title('INSTRUCTIONS', color='#104E8B', fontweight='bold')
 	axtext.get_xaxis().set_visible(False)
 	axtext.get_yaxis().set_visible(False)
-	axtext.text(0.5, 0.5,
-		'Please check that the green line\nis as straight as possible,\nat least in the high frequencies.\n\nIf not, adjust the sliders\nabove and press the Update button.\n\nResMap will try to pre-whiten the\nvolume again (the window will close).\n\nIf you are satisfied\nplease press Continue below.',
-        horizontalalignment='center',
-        verticalalignment='center',
-        fontsize=14,
-        transform=axtext.transAxes)
+	axtext.text(0.5, 0.5, instructions,
+			horizontalalignment='center',
+			verticalalignment='center',
+			fontsize=14,
+			transform=axtext.transAxes)
 
 	# Spectra
 	ax1.plot(xpoly, dataSpect,		lw=2, color='b', label='Input Map')
@@ -329,10 +360,18 @@ def displayPreWhitening(**kwargs):
 	ax3.imshow(dataPWSlice, cmap=plt.cm.gray, interpolation="nearest")
 	ax2.set_title('Middle Slice of Input Map')
 	ax3.set_title('Middle Slice of Pre-Whitened Map')
-
+	
+	fig.canvas.draw()
+	
+	return fig
+	
+	
+def displayPreWhitening(**kwargs):
+		
+	fig = createPrewhiteningFigure(**kwargs)
 	plt.show()
 
-	return (selbow.val, sramp.val)
+	return (fig.selbow.val, fig.sramp.val)
 
 def displayPowerSpectrum(*args):
 
