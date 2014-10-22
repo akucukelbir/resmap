@@ -109,6 +109,8 @@ def ResMap_algorithm(**kwargs):
 	graphicalOutput  = bool(kwargs.get('graphicalOutput', False))
 	chimeraLaunch    = bool(kwargs.get('chimeraLaunch', False))
 	noiseDiagnostics = bool(kwargs.get('noiseDiagnostics', False))
+	
+	scipionPrewhitenParams = kwargs.get('scipionPrewhitenParams', {})
 
 	# Check for voxel size (really shouldn't ever happen)
 	if vxSize == 0.0:
@@ -223,7 +225,8 @@ def ResMap_algorithm(**kwargs):
 														dataMask          = dataMask,
 														splitVolume       = splitVolume,
 														Rinside           = Rinside,
-														LPFfactor         = LPFfactor
+														LPFfactor         = LPFfactor,
+														scipionPrewhitenParams = scipionPrewhitenParams
 														)
 	else:
 		preWhiteningLoopResult = preWhiteningLoop(
@@ -236,13 +239,22 @@ def ResMap_algorithm(**kwargs):
 														dataMask          = dataMask,
 														splitVolume       = splitVolume,
 														Rinside           = Rinside,
-														LPFfactor         = LPFfactor
+														LPFfactor         = LPFfactor,
+														scipionPrewhitenParams = scipionPrewhitenParams
 														)
 
+	# The "force-stop" param will serve to launch a wizard to estimate 
+	# the prewhitening params and then launch completely in batch mode 
+	if scipionPrewhitenParams.get('force-stop', False):
+		return preWhiteningLoopResult		
+	
 	data = preWhiteningLoopResult['data']
+	
 	if splitVolume == True:
 		dataDiff = preWhiteningLoopResult['dataDiff']
-
+		
+	print 'newElbowAngstrom', preWhiteningLoopResult['newElbowAngstrom']
+	print 'newRampWeight', preWhiteningLoopResult['newRampWeight']
 
 	#################################
 	#
@@ -764,14 +776,21 @@ def preWhiteningLoop(**kwargs):
 
 	n = data.shape[0]
 
+
+	# Allow to pass previous params for pre-whitening and avoid to 
+	# launch the gui from scratch
+	scipionPrewhitenParams = kwargs.get('scipionPrewhitenParams', {})
+
 	# We take a first shot at ramping the spectrum up/down beyond 10A
 	oldElbowAngstrom = 0
-	newElbowAngstrom = max(10,2.1*vxSize)
+	#newElbowAngstrom = max(10,2.1*vxSize)
+	newElbowAngstrom = scipionPrewhitenParams.get('newElbowAngstrom', max(10,2.1*vxSize))
 
 	# Sometimes the ramping is too much, so we allow the user to adjust it
 	oldRampWeight = 0.0
-	newRampWeight = 1.0
-
+	#newRampWeight = 1.0
+	newRampWeight = scipionPrewhitenParams.get('newRampWeight', 1.0)
+	
 	if n > subVolLPF:
 
 		print("\n=======================================================================\n"
@@ -865,6 +884,9 @@ def preWhiteningLoop(**kwargs):
 		m, s = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
+		if scipionPrewhitenParams.get('force-stop', False):
+			return locals()
+		
 		#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
 		# 	This loop will stop when the user does NOT change the elbow in the interface.
 		#	It is a bit of a hack, but it works completely within matplotlib (which is a relief)
@@ -882,19 +904,21 @@ def preWhiteningLoop(**kwargs):
 
 			oldElbowAngstrom = newElbowAngstrom
 			oldRampWeight    = newRampWeight
-
-			newElbowAngstrom, newRampWeight = displayPreWhitening(
-								elbowAngstrom = oldElbowAngstrom,
-								rampWeight    = oldRampWeight,
-								dataSpect     = dataSpect,
-								dataBGSpect   = dataBGSpect,
-								peval         = preWhiteningResult['peval'],
-								dataPWSpect   = preWhiteningResult['dataPWSpect'],
-								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
-								vxSize 		  = vxSize,
-								dataSlice     = cubeInside[int(cubeSize/2),:,:],
-								dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
-								)
+			
+			
+			if scipionPrewhitenParams.get('display', True):
+				newElbowAngstrom, newRampWeight = displayPreWhitening(
+									elbowAngstrom = oldElbowAngstrom,
+									rampWeight    = oldRampWeight,
+									dataSpect     = dataSpect,
+									dataBGSpect   = dataBGSpect,
+									peval         = preWhiteningResult['peval'],
+									dataPWSpect   = preWhiteningResult['dataPWSpect'],
+									dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
+									vxSize 		  = vxSize,
+									dataSlice     = cubeInside[int(cubeSize/2),:,:],
+									dataPWSlice   = cubeInsidePW[int(cubeSize/2),:,:]
+									)
 
 
 		print '\n= Pre-whitening the Full Volume (this might take a bit of time...)'
@@ -920,36 +944,37 @@ def preWhiteningLoop(**kwargs):
 		m, s = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
 
-		# Pre-whitening Results Plots
-		f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
-		f.suptitle('Pre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
-
-		vminData, vmaxData = np.min(data), np.max(data)
-		ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-		ax2.imshow(data[(4*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-		ax3.imshow(data[(5*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-		ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
-
-		vminDataPW, vmaxDataPW = np.min(dataPW), np.max(dataPW)
-		ax5.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-		ax6.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-		ax7.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-		ax8.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
-
-		ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
-		ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
-		ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-		ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
-
-		ax5.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
-		ax6.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
-		ax7.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
-		ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
-
-		ax1.set_ylabel('Input Volume\n\n',        fontsize=14, color='#104E8B', fontweight='bold')
-		ax5.set_ylabel('Pre-whitened Volume\n\n', fontsize=14, color='#104E8B', fontweight='bold')
-
-		plt.show()
+		if scipionPrewhitenParams.get('display', True):
+			# Pre-whitening Results Plots
+			f, ((ax1, ax2, ax3, ax4), (ax5, ax6, ax7, ax8)) = plt.subplots(2, 4, figsize=(18, 9))
+			f.suptitle('Pre-Whitening Results', fontsize=14, color='#104E8B', fontweight='bold')
+	
+			vminData, vmaxData = np.min(data), np.max(data)
+			ax1.imshow(data[(3*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax2.imshow(data[(4*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax3.imshow(data[(5*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+			ax4.imshow(data[(6*n/9),:,:], vmin=vminData, vmax=vmaxData, cmap=plt.cm.gray, interpolation="nearest")
+	
+			vminDataPW, vmaxDataPW = np.min(dataPW), np.max(dataPW)
+			ax5.imshow(dataPW[(3*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax6.imshow(dataPW[(4*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax7.imshow(dataPW[(5*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+			ax8.imshow(dataPW[(6*n/9),:,:], vmin=vminDataPW, vmax=vmaxDataPW, cmap=plt.cm.gray, interpolation="nearest")
+	
+			ax1.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+			ax2.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+			ax3.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+			ax4.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
+	
+			ax5.set_title('Slice ' + str(int(3*n/9)), fontsize=10, color='#104E8B')
+			ax6.set_title('Slice ' + str(int(4*n/9)), fontsize=10, color='#104E8B')
+			ax7.set_title('Slice ' + str(int(5*n/9)), fontsize=10, color='#104E8B')
+			ax8.set_title('Slice ' + str(int(6*n/9)), fontsize=10, color='#104E8B')
+	
+			ax1.set_ylabel('Input Volume\n\n',        fontsize=14, color='#104E8B', fontweight='bold')
+			ax5.set_ylabel('Pre-whitened Volume\n\n', fontsize=14, color='#104E8B', fontweight='bold')
+	
+			plt.show()
 
 		# Set the data to be the pre-whitened volume
 		data     = dataPW
@@ -1008,6 +1033,9 @@ def preWhiteningLoop(**kwargs):
 
 		m, s = divmod(time() - tStart, 60)
 		print "  :: Time elapsed: %d minutes and %.2f seconds" % (m, s)
+		
+		if scipionPrewhitenParams.get('force-stop', False):
+			return locals()
 
 		#   While: the user changes the elbow in the Pre-Whitening Interface, repeat: the pre-whitening.
 		# 	This loop will stop when the user does NOT change the elbow in the interface.
@@ -1038,18 +1066,19 @@ def preWhiteningLoop(**kwargs):
 			oldElbowAngstrom = newElbowAngstrom
 			oldRampWeight    = newRampWeight
 
-			newElbowAngstrom, newRampWeight = displayPreWhitening(
-								elbowAngstrom = oldElbowAngstrom,
-								rampWeight    = oldRampWeight,
-								dataSpect     = dataPowerSpectrum,
-								dataBGSpect   = dataBGSpect,
-								peval         = preWhiteningResult['peval'],
-								dataPWSpect   = preWhiteningResult['dataPWSpect'],
-								dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
-								vxSize 		  = vxSize,
-								dataSlice     = data[int(n/2),:,:],
-								dataPWSlice   = dataPW[int(n/2),:,:]
-								)
+			if scipionPrewhitenParams.get('display', True):
+				newElbowAngstrom, newRampWeight = displayPreWhitening(
+									elbowAngstrom = oldElbowAngstrom,
+									rampWeight    = oldRampWeight,
+									dataSpect     = dataPowerSpectrum,
+									dataBGSpect   = dataBGSpect,
+									peval         = preWhiteningResult['peval'],
+									dataPWSpect   = preWhiteningResult['dataPWSpect'],
+									dataPWBGSpect = preWhiteningResult['dataPWBGSpect'],
+									vxSize 		  = vxSize,
+									dataSlice     = data[int(n/2),:,:],
+									dataPWSlice   = dataPW[int(n/2),:,:]
+									)
 
 			del preWhiteningResult
 
@@ -1061,9 +1090,14 @@ def preWhiteningLoop(**kwargs):
 
 
 	if splitVolume == False:
-		return {'data': data}
+		return {'data': data, 
+				'newElbowAngstrom': newElbowAngstrom,
+				'newRampWeight': newRampWeight}
 	else:
-		return {'data': data, 'dataDiff': dataDiff}
+		return {'data': data, 
+				'dataDiff': dataDiff,
+				'newElbowAngstrom': newElbowAngstrom,
+				'newRampWeight': newRampWeight}
 
 
 
