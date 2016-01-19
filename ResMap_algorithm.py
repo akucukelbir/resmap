@@ -356,6 +356,11 @@ def ResMap_algorithm(**kwargs):
 											resTOTALma = resTOTALma,
 											resHisto   = resHisto
                   		)
+
+	computeResMapResult['minRes'] = minRes
+	computeResMapResult['maxRes'] = maxRes
+	computeResMapResult['orig_n'] = orig_n
+
 	return computeResMapResult
 
 
