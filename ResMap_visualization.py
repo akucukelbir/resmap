@@ -1,6 +1,7 @@
-import numpy as np
 
+import numpy as np
 import matplotlib.pyplot as plt
+
 
 
 def visualize2DPlots(**kwargs):
@@ -26,13 +27,19 @@ def plotOriginalVolume(volumeData):
                               np.min(volumeData), np.max(volumeData), plt.cm.gray)
     return fig
 
+
 def plotResMapVolume(resmapData, minRes, maxRes):
-    fig, im = plotVolumeSlices('Slices Through ResMap Results', resmapData, 
-                               0., np.max(resmapData), plt.cm.jet)
+    palette = plt.cm.jet
+    palette.set_over('w', maxRes)
+    palette.set_under('w', minRes)
+
+    fig, im = plotVolumeSlices('Slices Through ResMap Results', resmapData,
+                               minRes, maxRes, palette)
     cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
     fig.colorbar(im, cax=cax)
     return fig
-    
+
+
 def plotVolumeSlices(title, volumeData, vminData, vmaxData, cmap, **kwargs):
     """ Helper function to create plots of volumes slices. 
     Params:
@@ -53,7 +60,8 @@ def plotVolumeSlices(title, volumeData, vminData, vmaxData, cmap, **kwargs):
     def showSlice(ax, index):
         pos = int(index*size/9)
         ax.set_title('Slice ' + str(pos), fontsize=sliceFontSize, color=sliceColor)
-        return ax.imshow(volumeData[pos,:,:], vmin=vminData, vmax=vmaxData, cmap=cmap, interpolation="nearest")
+        return ax.imshow(volumeData[pos,:,:], vmin=vminData, vmax=vmaxData,
+                         cmap=cmap, interpolation="nearest")
     
     im = showSlice(ax1, 3)
     showSlice(ax2, 4)
@@ -61,6 +69,7 @@ def plotVolumeSlices(title, volumeData, vminData, vmaxData, cmap, **kwargs):
     showSlice(ax4, 6)
     
     return f, im 
+
 
 def plotResolutionHistogram(histogramData, **kwargs):
     # Histogram
