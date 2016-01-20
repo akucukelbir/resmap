@@ -22,11 +22,11 @@ def visualize2DPlots(**kwargs):
     plt.show()
     
 
-def plotOriginalVolume(volumeData):    
+def plotOriginalVolume(volumeData, **kwargs):
     fig, _ = plotVolumeSlices('Slices Through Input Volume', volumeData, 
                               vminData=np.min(volumeData),
                               vmaxData=np.max(volumeData),
-                              cmap=plt.cm.gray)
+                              cmap=plt.cm.gray, **kwargs)
     return fig
 
 
@@ -54,15 +54,24 @@ def plotVolumeSlices(title, volumeData, vminData, vmaxData, cmap, **kwargs):
     sliceColor = kwargs.get('sliceColor', '#104E8B')
     size = kwargs.get('n', volumeData.shape[0])
     origSize = kwargs.get('orig_n', size)
+    dataAxis = kwargs.get('dataAxis', 'z')
 
     f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     f.suptitle(title, fontsize=titleFontSize, color=titleColor, fontweight='bold')
-    
+
+    def getSlice(slice):
+        if dataAxis == 'y':
+            return volumeData[:,slice,:]
+        elif dataAxis == 'x':
+            return volumeData[:,:,slice]
+        else:
+            return volumeData[slice,:,:]
+
     def showSlice(ax, index):
         sliceTitle = 'Slice %s' % int(index*size/9)
         slice = int(index*origSize/9)
         ax.set_title(sliceTitle, fontsize=sliceFontSize, color=sliceColor)
-        return ax.imshow(volumeData[slice,:,:], vmin=vminData, vmax=vmaxData,
+        return ax.imshow(getSlice(slice), vmin=vminData, vmax=vmaxData,
                          cmap=cmap, interpolation="nearest")
     
     im = showSlice(ax1, 3)
