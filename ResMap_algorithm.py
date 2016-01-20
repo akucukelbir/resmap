@@ -736,7 +736,8 @@ def computeResMap(**kwargs):
 
 		resTOTALma = np.ma.masked_where(resTOTAL > currentRes, resTOTAL, copy=True)
 
-	return {'resTOTAL':resTOTAL, 'resTOTALma':resTOTALma, 'resHisto':resHisto}
+	return {'resTOTAL':resTOTAL, 'resTOTALma':resTOTALma,
+			'resHisto':resHisto, 'currentRes': currentRes}
 
 
 
