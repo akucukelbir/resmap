@@ -360,6 +360,7 @@ def ResMap_algorithm(**kwargs):
 	computeResMapResult['minRes'] = minRes
 	computeResMapResult['maxRes'] = maxRes
 	computeResMapResult['orig_n'] = orig_n
+	computeResMapResult['n'] = resTOTALma.shape[0]
 
 	return computeResMapResult
 

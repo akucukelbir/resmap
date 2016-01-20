@@ -24,17 +24,21 @@ def visualize2DPlots(**kwargs):
 
 def plotOriginalVolume(volumeData):    
     fig, _ = plotVolumeSlices('Slices Through Input Volume', volumeData, 
-                              np.min(volumeData), np.max(volumeData), plt.cm.gray)
+                              vminData=np.min(volumeData),
+                              vmaxData=np.max(volumeData),
+                              cmap=plt.cm.gray)
     return fig
 
 
-def plotResMapVolume(resmapData, minRes, maxRes):
+def plotResMapVolume(resmapData, **kwargs):
     palette = plt.cm.jet
-    palette.set_over('w', maxRes)
-    palette.set_under('w', minRes)
+    palette.set_over('w', kwargs['maxRes'])
+    palette.set_under('w', kwargs['minRes'])
 
     fig, im = plotVolumeSlices('Slices Through ResMap Results', resmapData,
-                               minRes, maxRes, palette)
+                               vminData=kwargs['minRes'],
+                               vmaxData=kwargs['maxRes'],
+                               cmap=palette, **kwargs)
     cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
     fig.colorbar(im, cax=cax)
     return fig
@@ -52,15 +56,17 @@ def plotVolumeSlices(title, volumeData, vminData, vmaxData, cmap, **kwargs):
     titleColor = kwargs.get('titleColor','#104E8B')
     sliceFontSize = kwargs.get('sliceFontSize', 10)
     sliceColor = kwargs.get('sliceColor', '#104E8B')
-    size = volumeData.shape[0]
+    size = kwargs.get('n', volumeData.shape[0])
+    origSize = kwargs.get('orig_n', size)
     
     f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     f.suptitle(title, fontsize=titleFontSize, color=titleColor, fontweight='bold')
     
     def showSlice(ax, index):
-        pos = int(index*size/9)
-        ax.set_title('Slice ' + str(pos), fontsize=sliceFontSize, color=sliceColor)
-        return ax.imshow(volumeData[pos,:,:], vmin=vminData, vmax=vmaxData,
+        sliceTitle = 'Slice %s' % int(index*size/9)
+        slice = int(index*origSize/9)
+        ax.set_title(sliceTitle, fontsize=sliceFontSize, color=sliceColor)
+        return ax.imshow(volumeData[slice,:,:], vmin=vminData, vmax=vmaxData,
                          cmap=cmap, interpolation="nearest")
     
     im = showSlice(ax1, 3)
