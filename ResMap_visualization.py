@@ -31,14 +31,10 @@ def plotOriginalVolume(volumeData):
 
 
 def plotResMapVolume(resmapData, **kwargs):
-    palette = plt.cm.jet
-    palette.set_over('w', kwargs['maxRes'])
-    palette.set_under('w', kwargs['minRes'])
-
     fig, im = plotVolumeSlices('Slices Through ResMap Results', resmapData,
                                vminData=kwargs['minRes'],
                                vmaxData=kwargs['maxRes'],
-                               cmap=palette, **kwargs)
+                               cmap=plt.cm.jet, **kwargs)
     cax = fig.add_axes([0.9, 0.1, 0.03, 0.8])
     fig.colorbar(im, cax=cax)
     return fig
@@ -58,7 +54,7 @@ def plotVolumeSlices(title, volumeData, vminData, vmaxData, cmap, **kwargs):
     sliceColor = kwargs.get('sliceColor', '#104E8B')
     size = kwargs.get('n', volumeData.shape[0])
     origSize = kwargs.get('orig_n', size)
-    
+
     f, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     f.suptitle(title, fontsize=titleFontSize, color=titleColor, fontweight='bold')
     
